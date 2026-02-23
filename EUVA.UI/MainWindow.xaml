@@ -226,25 +226,28 @@
                                                VerticalAlignment="Center" Margin="8,0,0,0"/>
                                 </Grid>
                             </Border>
-
-                           
-                            <ListView x:Name="DetectionList"
-                                      Grid.Row="1"
-                                      Background="#1E1E1E" BorderThickness="0"
-                                      Foreground="#DCDCDC"
-                                      VirtualizingPanel.IsVirtualizing="True"
-                                      VirtualizingPanel.VirtualizationMode="Recycling"
-                                      MouseDoubleClick="DetectionList_MouseDoubleClick">
+                                  <ListView x:Name="DetectionList"
+                                    Grid.Row="1"
+                                    Background="#1E1E1E" BorderThickness="0"
+                                    Foreground="#DCDCDC"
+                                    VirtualizingPanel.IsVirtualizing="True"
+                                    VirtualizingPanel.VirtualizationMode="Recycling"
+                                    MouseDoubleClick="DetectionList_MouseDoubleClick">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
                                         <Border BorderBrush="#3E3E42" BorderThickness="0,0,0,1" Padding="5">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}"
+                                                        FontWeight="Bold" Foreground="#4EC9B0"/>
+                                                <TextBlock Text="{Binding Type}"
+                                                        Foreground="#9CDCFE" FontSize="11"/>
+                                            </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
                             </ListView>
                         </Grid>
                     </TabItem>
-
                     <TabItem Header="Properties">
                         <controls:PropertyGrid x:Name="PropertyGrid"/>
                     </TabItem>
