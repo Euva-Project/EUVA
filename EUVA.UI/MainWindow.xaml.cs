@@ -442,7 +442,7 @@ public partial class MainWindow : Window
             {
                 byte b = _inspectorBuf[0];
                 items.Add(new InspectorItem("Int8 / UInt8", $"{(sbyte)b} | {b}", $"{b:X2}"));
-                items.Add(new InspectorItem("Двоичный (8 бит)", Convert.ToString(b, 2).PadLeft(8, '0'), "-"));
+                items.Add(new InspectorItem("binary (8 bit)", Convert.ToString(b, 2).PadLeft(8, '0'), "-"));
             }
             if (remaining >= 2)
             {
@@ -492,7 +492,6 @@ public partial class MainWindow : Window
                         : "Invalid",
                     "Win32"));
 
-                // valid range 
                 items.Add(new InspectorItem("OLETIME",
                     !double.IsNaN(dv) && dv >= -657434.0 && dv <= 2958465.99999999
                         ? DateTime.FromOADate(dv).ToString()

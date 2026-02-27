@@ -22,21 +22,21 @@ public sealed class ThemeManager
     public static readonly IReadOnlyDictionary<string, (byte R, byte G, byte B, byte A)> DefaultTheme =
         new Dictionary<string, (byte, byte, byte, byte)>(StringComparer.Ordinal)
         {
-            // General shell
+            
             { "Background",             ( 30,  30,  30, 255) },
             { "Sidebar",                ( 37,  37,  38, 255) },
             { "Toolbar",                ( 45,  45,  48, 255) },
             { "Border",                 ( 62,  62,  66, 255) },
             { "SeparatorLine",          ( 62,  62,  66, 255) },
-            // Menus
+            
             { "MenuBackground",         ( 45,  45,  48, 255) },
             { "MenuForeground",         (220, 220, 220, 255) },
             { "MenuHighlight",          ( 62,  62,  66, 255) },
-            // Text
+            
             { "ForegroundPrimary",      (220, 220, 220, 255) },
             { "ForegroundSecondary",    (153, 153, 153, 255) },
             { "ForegroundDisabled",     (100, 100, 100, 255) },
-            // Hex view
+            
             { "Hex_Background",         ( 30,  30,  30, 255) },
             { "Hex_OffsetForeground",   (160, 160, 160, 255) },
             { "HexOffset",              (160, 160, 160, 255) },
@@ -46,17 +46,17 @@ public sealed class ThemeManager
             { "Hex_ByteHighlight",      ( 78, 201, 176,  80) },
             { "Hex_AsciiPrintable",     (144, 238, 144, 255) },
             { "Hex_AsciiNonPrintable",  (100, 100, 100, 255) },
-            // Structure tree
+            
             { "TreeBackground",         ( 37,  37,  38, 255) },
             { "TreeText",               (220, 220, 220, 255) },
             { "TreeItemHighlight",      ( 62,  62,  66, 200) },
             { "TreeIconSection",        ( 86, 156, 214, 255) },
             { "TreeIconField",          ( 78, 201, 176, 255) },
-            // Property grid
+            
             { "PropertyBackground",     ( 45,  45,  48, 255) },
             { "PropertyKey",            (156, 220, 254, 255) },
             { "PropertyValue",          (206, 145, 120, 255) },
-            // Console
+            
             { "ConsoleBackground",      ( 30,  30,  30, 255) },
             { "ConsoleForeground",      (220, 220, 220, 255) },
             { "ConsoleError",           (244,  71,  71, 255) },

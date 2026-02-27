@@ -11,18 +11,15 @@
                 <ResourceDictionary Source="Theming/ThemeResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- Window -->
             <Style TargetType="Window">
                 <Setter Property="Background" Value="{DynamicResource Background}"/>
             </Style>
 
-            <!-- Menu -->
             <Style TargetType="Menu">
                 <Setter Property="Background" Value="{DynamicResource MenuBackground}"/>
                 <Setter Property="Foreground" Value="{DynamicResource MenuForeground}"/>
             </Style>
 
-            <!-- MenuItem -->
             <Style TargetType="MenuItem">
                 <Setter Property="Background" Value="{DynamicResource MenuBackground}"/>
                 <Setter Property="Foreground" Value="{DynamicResource MenuForeground}"/>
@@ -33,7 +30,6 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- ScrollBar -->
             <Style TargetType="ScrollBar">
                 <Setter Property="Background" Value="{DynamicResource Border}"/>
             </Style>

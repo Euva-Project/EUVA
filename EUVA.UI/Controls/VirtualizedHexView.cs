@@ -99,7 +99,7 @@ public class VirtualizedHexView : FrameworkElement
         }
     }
 
-    // mmf
+    
     private MemoryMappedFile? _mmf;
     private MemoryMappedViewAccessor? _accessor;
     private readonly ReaderWriterLockSlim _accessorLock = new(LockRecursionPolicy.NoRecursion);
@@ -114,7 +114,7 @@ public class VirtualizedHexView : FrameworkElement
     private long SelectionMax => Math.Max(_selectionStart, _selectionEnd);
     private long _selectedOffset = -1;
     private int _bytesPerLine = 24;
-    private double _lineHeight = 18;
+    private double _lineHeight = 20;
     private double _charWidth = 9;
     private double _fontSize = 13;
     private double _pixelsPerDip = 1.0;
@@ -122,7 +122,7 @@ public class VirtualizedHexView : FrameworkElement
     private int CellW => (int)Math.Ceiling(_charWidth * _pixelsPerDip);
     private int CellH => (int)Math.Ceiling(_lineHeight * _pixelsPerDip);
 
-    //bitmap
+    
     private WriteableBitmap? _bitmap;
     private uint[] _backBuffer = Array.Empty<uint>();
     private int _bitmapWidth = 0;
@@ -130,7 +130,7 @@ public class VirtualizedHexView : FrameworkElement
     private bool _fullRedrawNeeded = true;
     private readonly HashSet<long> _dirtyLines = new();
 
-    //glyphcache
+    
     private GlyphCache? _glyphCache;
     private char[] _asciiLookupTable = new char[256];
     private int _currentCodePage = 1251;
@@ -139,7 +139,7 @@ public class VirtualizedHexView : FrameworkElement
     private readonly HashSet<long> _modifiedOffsets = new();
     private volatile HashSet<long> _modifiedSnapshot = new();
 
-    // yara
+    
     private uint _colYaraHit;
     private readonly object _yaraLock = new();
     private readonly HashSet<long> _yaraOffsets = new();
@@ -156,13 +156,28 @@ public class VirtualizedHexView : FrameworkElement
     private uint _colColumnHeader;
     private uint _colSelectionBg;
     private uint _colModifiedBg;
+    
+    private uint _colHeaderBg;    
+    private uint _colAltGroup;    
+    private uint _colSeparator;   
+    private uint _colCursorBg;    
+
+    
+    
+    private uint _colByteFF;          
+    private uint _colByteControl;     
+    private uint _colByteWhitespace;  
+    private uint _colByteDigit;       
+    private uint _colByteAlpha;       
+    private uint _colByteSymbol;      
+    private uint _colByteHigh;        
 
     private readonly Image _image = new() { Stretch = Stretch.None };
 
     public bool IsMediaMode { get; set; } = false;
     private byte[]? _mediaBuffer;
 
-    //mediamode density ascii
+    
     private readonly string _videoRamp = " .:-=+*#%@";
     public Brush CurrentColor { get; set; } = Brushes.Green;
 
@@ -232,18 +247,31 @@ public class VirtualizedHexView : FrameworkElement
     }
     public void RefreshColorCache()
     {
-        _colBackground = ColorToArgb(ThemeColor("Hex_Background", Color.FromRgb(30, 30, 30)));
-        _colOffset = ColorToArgb(ThemeColor("HexOffset", Color.FromRgb(160, 160, 160)));
-        _colByteActive = ColorToArgb(ThemeColor("Hex_ByteActive", Color.FromRgb(173, 216, 230)));
-        _colByteNull = ColorToArgb(ThemeColor("Hex_ByteNull", Color.FromRgb(80, 80, 80)));
-        _colByteSelected = ColorToArgb(ThemeColor("Hex_ByteSelected", Color.FromRgb(255, 255, 0)));
-        _colAsciiPrintable = ColorToArgb(ThemeColor("Hex_AsciiPrintable", Color.FromRgb(144, 238, 144)));
-        _colAsciiNonPrint = ColorToArgb(ThemeColor("Hex_AsciiNonPrintable", Color.FromRgb(100, 100, 100)));
-        _colColumnHeader = ColorToArgb(ThemeColor("ForegroundSecondary", Color.FromRgb(100, 100, 100)));
-        _colAsciiExt = ColorToArgb(Color.FromRgb(60, 120, 60));
-        _colSelectionBg = ColorToArgb(Color.FromArgb(100, 51, 153, 255));
-        _colModifiedBg = ColorToArgb(Color.FromArgb(80, 255, 0, 128));
-        _colYaraHit = ColorToArgb(Color.FromArgb(100, 255, 255, 0));
+        _colBackground   = ColorToArgb(ThemeColor("Hex_Background",        Color.FromRgb(0x1E, 0x1E, 0x2E)));
+        _colOffset      = ColorToArgb(ThemeColor("HexOffset",            Color.FromRgb(0x6C, 0x70, 0x86))); 
+        _colByteActive  = ColorToArgb(ThemeColor("Hex_ByteActive",       Color.FromRgb(0xCD, 0xD6, 0xF4))); 
+        _colByteNull    = ColorToArgb(ThemeColor("Hex_ByteNull",         Color.FromRgb(0x45, 0x47, 0x5A))); 
+        _colByteSelected= ColorToArgb(ThemeColor("Hex_ByteSelected",     Color.FromRgb(0x1E, 0x1E, 0x2E))); 
+        _colAsciiPrintable = ColorToArgb(ThemeColor("Hex_AsciiPrintable",Color.FromRgb(0xA6, 0xE3, 0xA1))); 
+        _colAsciiNonPrint  = ColorToArgb(ThemeColor("Hex_AsciiNonPrintable", Color.FromRgb(0x45, 0x47, 0x5A))); 
+        _colColumnHeader = ColorToArgb(ThemeColor("Hex_ColumnHeader",    Color.FromRgb(0x6C, 0x70, 0x86))); 
+        _colAsciiExt    = ColorToArgb(Color.FromRgb(0x94, 0xE2, 0xD5));  
+        _colSelectionBg = ColorToArgb(ThemeColor("Hex_SelectionBg",      Color.FromArgb(0x70, 0x89, 0xB4, 0xFA))); 
+        _colModifiedBg  = ColorToArgb(Color.FromArgb(0x80, 0xF3, 0x8B, 0xA8)); 
+        _colYaraHit     = ColorToArgb(Color.FromArgb(0x80, 0xF9, 0xE2, 0xAF)); 
+        
+        _colHeaderBg    = ColorToArgb(ThemeColor("Hex_HeaderBackground", Color.FromRgb(0x18, 0x18, 0x25))); 
+        _colAltGroup    = ColorToArgb(ThemeColor("Hex_AltGroup",         Color.FromArgb(0x12, 0xCD, 0xD6, 0xF4))); 
+        _colSeparator   = ColorToArgb(ThemeColor("Hex_Separator",        Color.FromRgb(0x31, 0x32, 0x44))); 
+        _colCursorBg    = ColorToArgb(ThemeColor("Hex_CursorBackground", Color.FromRgb(0x89, 0xB4, 0xFA))); 
+
+        _colByteFF         = ColorToArgb(Color.FromRgb(0x85, 0x8A, 0xA0)); 
+        _colByteControl    = ColorToArgb(Color.FromRgb(0xC8, 0x78, 0x82)); 
+        _colByteWhitespace = ColorToArgb(Color.FromRgb(0xBB, 0xAC, 0x65)); 
+        _colByteDigit      = ColorToArgb(Color.FromRgb(0x72, 0xD0, 0xC6)); 
+        _colByteAlpha      = ColorToArgb(Color.FromRgb(0x7A, 0xAA, 0xF0)); 
+        _colByteSymbol     = ColorToArgb(Color.FromRgb(0xB4, 0xB8, 0xD8)); 
+        _colByteHigh       = ColorToArgb(Color.FromRgb(0xB4, 0x96, 0xE8)); 
 
         RebuildGlyphCache();
         RequestFullRedraw();
@@ -283,7 +311,10 @@ public class VirtualizedHexView : FrameworkElement
         uint[] colors = {
             _colByteActive, _colByteNull, _colByteSelected,
             _colAsciiPrintable, _colAsciiNonPrint, _colAsciiExt,
-            _colOffset, _colColumnHeader
+            _colOffset, _colColumnHeader, _colCursorBg,
+            
+            _colByteFF, _colByteControl, _colByteWhitespace,
+            _colByteDigit, _colByteAlpha, _colByteSymbol, _colByteHigh
         };
         char[] hexChars = "0123456789ABCDEF ".ToCharArray();
         foreach (var col in colors)
@@ -321,7 +352,7 @@ public class VirtualizedHexView : FrameworkElement
         if (_bitmap == null || _bitmapWidth == 0)
         {
             dc.DrawRectangle(
-                new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x2E)),
                 null, new Rect(0, 0, ActualWidth, ActualHeight));
             return;
         }
@@ -364,13 +395,46 @@ public class VirtualizedHexView : FrameworkElement
     private void RenderFullFrame()
     {
         FillBackground(_backBuffer, _bitmapWidth, _bitmapHeight, _colBackground);
-        int offsetColPx = (int)(120 * _pixelsPerDip);
-        int hexColPx = (int)(_bytesPerLine * 3 * _charWidth * _pixelsPerDip);
+        int offsetColPx   = (int)(120 * _pixelsPerDip);
+        int hexColPx      = (int)(_bytesPerLine * 3 * _charWidth * _pixelsPerDip);
         int asciiColStartPx = offsetColPx + hexColPx + (int)(20 * _pixelsPerDip);
+        int hexCellStepPxHdr = (int)Math.Round(3 * _charWidth * _pixelsPerDip);
+        int headerH       = (int)(25 * _pixelsPerDip);
 
-        DrawStringToBuffer("Offset", 10, 5, _colColumnHeader);
-        DrawStringToBuffer("Hex View", offsetColPx + 10, 5, _colColumnHeader);
-        DrawStringToBuffer("ASCII", asciiColStartPx, 5, _colColumnHeader);
+        
+        
+        FillRect(_backBuffer, _bitmapWidth, 0, 0, _bitmapWidth, headerH, _colHeaderBg);
+
+        
+        DrawStringToBuffer("  Offset  ", 0, 5, _colColumnHeader);
+
+        
+        for (int ci = 0; ci < _bytesPerLine; ci++)
+        {
+            int xHdr = offsetColPx + 10 + ci * hexCellStepPxHdr;
+            
+            uint hdrColor = (ci % 8 == 0) ? (_colCursorBg & 0x00FFFFFF) | 0x90000000
+                                           : _colColumnHeader;
+            DrawStringToBuffer(ci.ToString("X2"), xHdr, 5, hdrColor);
+        }
+
+        
+        DrawStringToBuffer("  Text", asciiColStartPx, 5, _colColumnHeader);
+
+        
+        FillRect(_backBuffer, _bitmapWidth,
+            0, headerH - (int)_pixelsPerDip, _bitmapWidth, (int)_pixelsPerDip,
+            _colSeparator);
+
+        
+        FillRect(_backBuffer, _bitmapWidth,
+            offsetColPx + 4, 0, (int)_pixelsPerDip, _bitmapHeight,
+            _colSeparator);
+
+        
+        FillRect(_backBuffer, _bitmapWidth,
+            asciiColStartPx - (int)(8 * _pixelsPerDip), 0, (int)_pixelsPerDip, _bitmapHeight,
+            _colSeparator);
 
         long totalLines = (_fileLength + _bytesPerLine - 1) / _bytesPerLine;
         int visibleLines = (int)(ActualHeight / _lineHeight) + 2;
@@ -397,6 +461,42 @@ public class VirtualizedHexView : FrameworkElement
         int yPx = LineToPixelY(lineIdx);
         FillRect(_backBuffer, _bitmapWidth, 0, yPx, _bitmapWidth, CellH, _colBackground);
         RenderLineInternal(lineIdx, offset, offsetColPx, asciiColStartPx, _modifiedSnapshot);
+    }
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private uint GetByteColor(byte v)
+    {
+        if (v == 0x00) return _colByteNull;
+        if (v == 0xFF) return _colByteFF;
+        if (v == 0x20) return _colByteWhitespace;        
+        if (v < 0x09)  return _colByteControl;           
+        if (v <= 0x0D) return _colByteWhitespace;        
+        if (v < 0x20)  return _colByteControl;           
+        if (v == 0x7F) return _colByteControl;           
+        if (v > 0x7F)  return _colByteHigh;              
+        
+        if (v >= 0x30 && v <= 0x39) return _colByteDigit;
+        if (v >= 0x41 && v <= 0x5A) return _colByteAlpha;
+        if (v >= 0x61 && v <= 0x7A) return _colByteAlpha;
+        return _colByteSymbol;                           
     }
 
     private void RenderLineInternal(long lineIdx, long offset,
@@ -434,15 +534,22 @@ public class VirtualizedHexView : FrameworkElement
         bool hasSelection = HasSelection;
         long selMin = hasSelection ? SelectionMin : -1;
         long selMax = hasSelection ? SelectionMax : -1;
-        int hexCellStepPx = (int)Math.Round(3 * _charWidth * _pixelsPerDip);
+        int hexCellStepPx  = (int)Math.Round(3 * _charWidth * _pixelsPerDip);
         int hexCellWidthPx = (int)Math.Round(_charWidth * 2.0 * _pixelsPerDip);
+        int groupW         = hexCellStepPx * 8;  
 
         for (int i = 0; i < bytesToDraw; i++)
         {
             long byteOffset = offset + i;
-            byte value = _lineBuffer[i];
-            int xPx = offsetColPx + 10 + i * hexCellStepPx;
+            byte value      = _lineBuffer[i];
+            int  xPx        = offsetColPx + 10 + i * hexCellStepPx;
 
+            
+            if ((i / 8) % 2 == 1)
+                FillRect(_backBuffer, _bitmapWidth, xPx, yPx,
+                    hexCellWidthPx + (int)(_pixelsPerDip), CellH, _colAltGroup);
+
+            
             if (hasSelection && byteOffset >= selMin && byteOffset <= selMax)
                 FillRect(_backBuffer, _bitmapWidth, xPx, yPx,
                     hexCellWidthPx, CellH - 2, _colSelectionBg);
@@ -455,30 +562,39 @@ public class VirtualizedHexView : FrameworkElement
                 FillRect(_backBuffer, _bitmapWidth, xPx, yPx,
                     hexCellWidthPx, CellH - 2, _colYaraHit);
 
-            uint hexColor = (byteOffset == _selectedOffset) ? _colByteSelected
-                          : (value == 0x00) ? _colByteNull
-                                                            : _colByteActive;
+            
+            bool isCursor = (byteOffset == _selectedOffset);
+            if (isCursor)
+                FillRect(_backBuffer, _bitmapWidth,
+                    xPx - 1, yPx, hexCellWidthPx + 2, CellH - 1, _colCursorBg);
+
+            uint hexColor = isCursor ? _colByteSelected : GetByteColor(value);
             char hi = HexChar(value >> 4);
             char lo = HexChar(value & 0xF);
-            BlitGlyph(hi, xPx, yPx, hexColor);
+            BlitGlyph(hi, xPx,         yPx, hexColor);
             BlitGlyph(lo, xPx + CellW, yPx, hexColor);
-
-            if (byteOffset == _selectedOffset)
-                DrawRect(_backBuffer, _bitmapWidth,
-                    xPx - 1, yPx - 1, hexCellWidthPx + 2, CellH, _colByteSelected);
         }
 
         for (int i = 0; i < bytesToDraw; i++)
         {
             long byteOffset = offset + i;
-            byte value = _lineBuffer[i];
-            int xPx = asciiColStartPx + i * CellW;
+            byte value      = _lineBuffer[i];
+            int  xPx        = asciiColStartPx + i * CellW;
+
+            
+            if ((i / 8) % 2 == 1)
+                FillRect(_backBuffer, _bitmapWidth, xPx, yPx,
+                    CellW, CellH, _colAltGroup);
 
             if (hasSelection && byteOffset >= selMin && byteOffset <= selMax)
                 FillRect(_backBuffer, _bitmapWidth, xPx, yPx, CellW, CellH - 2, _colSelectionBg);
 
             if (_yaraSnapshot.Contains(byteOffset))
                 FillRect(_backBuffer, _bitmapWidth, xPx, yPx, CellW, CellH - 2, _colYaraHit);
+
+            
+            if (byteOffset == _selectedOffset)
+                FillRect(_backBuffer, _bitmapWidth, xPx, yPx, CellW, CellH - 1, _colCursorBg);
 
             char displayChar;
             uint asciiColor;
@@ -818,7 +934,7 @@ public class VirtualizedHexView : FrameworkElement
         RequestFullRedraw();
     }
 
-    // yara logic for saving and navigating matches works through a snapshot of the offsets where the matches were.
+    
     public bool JumpToNextYara()
     {
         var snap = _yaraSnapshot;
