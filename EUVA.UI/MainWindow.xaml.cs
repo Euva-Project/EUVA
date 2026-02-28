@@ -342,6 +342,13 @@ public partial class MainWindow : Window
         _detectorManager = new DetectorManager();
         _detectorManager.RegisterDetector(new UPXDetector());
         _detectorManager.RegisterDetector(new ThemidaDetector());
+
+        string pluginsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
+        if (!Directory.Exists(pluginsDir))
+            Directory.CreateDirectory(pluginsDir);
+
+        _detectorManager.LoadFromDirectory(pluginsDir);
+
         LogMessage($"Loaded {_detectorManager.Detectors.Count} detectors");
     }
 
