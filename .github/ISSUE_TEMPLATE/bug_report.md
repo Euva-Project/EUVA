@@ -1,3 +1,5 @@
+---
+
 name: "Bug Report"
 about: Report a bug or crash in EUVA
 title: "[BUG]: "
