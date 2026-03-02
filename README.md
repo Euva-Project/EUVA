@@ -41,6 +41,7 @@ By using EUVA, you acknowledge that you are solely responsible for your actions,
 - **fully themeable rendering layer** with persistent theme state across sessions
 - **Addition of the Yara-X rules engine** which allows for matching against thousands of pre-built rules for binary file analysis.
 - **Byte minimap** Allows you to instantly scan the hex grid of a binary file, simplifying research and instantly identifying where packed code or similar may be located.
+- **Disassembler** An iced-based disassembler will help in analyzing binary files and will present the binary file as readable logic.
 
 ---
 
@@ -59,6 +60,7 @@ To find out how a particular subsystem works, you can read the relevant document
 - [fully-themeable-rendering-layer](docs/Themes.md)
 - [Addition-of-the-Yara-X-rules-engine](docs/EuvaUseYaraX.md)
 - [Byte minimap](docs/byteminimap.md)
+- [Disassembler](docs/Disassembler.md)
 
 ---
 
@@ -70,6 +72,7 @@ To find out how a particular subsystem works, you can read the relevant document
 - С# 12.0 compiler
 - AsmResolver 5.5.1
 - DefenceTechSecurity.Yarax Release 1.0.1-release.yrx1.12.0
+- Iced Disassembler
 
 ```
 git clone https://github.com/pumpkin-bit/EUVA.git
