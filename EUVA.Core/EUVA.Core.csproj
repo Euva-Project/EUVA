@@ -14,6 +14,7 @@
   <ItemGroup>
     <PackageReference Include="AsmResolver.PE" Version="5.5.1" />
     <PackageReference Include="AsmResolver.PE.File" Version="5.5.1" />
+    <PackageReference Include="Iced" Version="1.21.0" />
   </ItemGroup>
 
 </Project>

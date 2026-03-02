@@ -417,6 +417,7 @@ public partial class MainWindow : Window
                 _transactionSteps.Clear();
             }
             OnFileLoaded();
+            RefreshDisasmOnFileLoad();
         }
         catch (Exception ex)
         {
@@ -1210,6 +1211,13 @@ public partial class MainWindow : Window
 
         if (action == EUVAAction.Undo) { PerformUndo(); e.Handled = true; return; }
         if (action == EUVAAction.FullUndo) { PerformFullUndo(); e.Handled = true; return; }
+
+        if (key == Key.D && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            MenuDisassembler_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
 
         if (action >= EUVAAction.NavInspector && action <= EUVAAction.NavProperties)
         {
