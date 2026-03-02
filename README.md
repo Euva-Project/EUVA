@@ -105,6 +105,7 @@ You can install either the native version from the resilient library or compile 
 - `FullUndo` - `Ctrl+Shift+Z`     Revert entire last script run 
 - `View byte` - `F3`              View the latest bytes changes
 - `View Yara Matches` - `Shift+F3` View matches found by Yara
+- `View Disassembler` - `Ctrl+D` View Disassembler
 
 **You can reassign hotkeys by loading (via the settings in the program menu) and editing the .htk file.**
 
