@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-
 using AsmResolver.PE;
 using AsmResolver.PE.File;
 using AsmResolver.PE.File.Headers;
@@ -10,11 +9,10 @@ using System.Text;
 using System.IO;
 using System.Linq;
 using System.Windows.Media;
+using System.Collections.Generic;
+using System;
 
 namespace EUVA.Core.Parsers;
-
-
-
 
 public class PEMapper : IBinaryMapper
 {
@@ -42,18 +40,10 @@ public class PEMapper : IBinaryMapper
         {
             var peFile = PEFile.FromBytes(_fileData);
 
-
             ParseDosHeader(root, peFile);
-
-
             ParseNtHeaders(root, peFile);
-
-
             ParseSections(root, peFile);
-
-
             ParseDataDirectories(root, peFile);
-
 
             foreach (var provider in _providers)
             {
@@ -112,7 +102,6 @@ public class PEMapper : IBinaryMapper
         var fileHeader = peFile.FileHeader;
         var optionalHeader = peFile.OptionalHeader;
 
-
         var fileHeaderNode = new BinaryStructure
         {
             Name = "File Header",
@@ -130,7 +119,6 @@ public class PEMapper : IBinaryMapper
 
         ntNode.AddChild(fileHeaderNode);
 
-
         var optHeaderNode = new BinaryStructure
         {
             Name = "Optional Header",
@@ -139,15 +127,27 @@ public class PEMapper : IBinaryMapper
             Size = (long)fileHeader.SizeOfOptionalHeader
         };
 
-        AddField(optHeaderNode, "Magic", 0, 2, optionalHeader.Magic, optionalHeader.Magic.ToString());
-        AddField(optHeaderNode, "AddressOfEntryPoint", 16, 4, optionalHeader.AddressOfEntryPoint,
-            $"0x{optionalHeader.AddressOfEntryPoint:X8}");
+        var magicVal = GetNestedMemberValue(optionalHeader, "Magic");
+        AddField(optHeaderNode, "Magic", 0, 2, magicVal ?? 0, magicVal?.ToString());
+        
+        var addrEpVal = GetNestedMemberValue(optionalHeader, "AddressOfEntryPoint");
+        AddField(optHeaderNode, "AddressOfEntryPoint", 16, 4, addrEpVal ?? 0,
+            $"0x{Convert.ToUInt32(addrEpVal ?? 0):X8}");
 
+        
         var imageBaseVal = GetNestedMemberValue(optionalHeader, "ImageBase");
-        int imageBaseSize = (imageBaseVal is ulong) ? 8 : 4;
-        var imageBaseNumeric = Convert.ToUInt64(imageBaseVal ?? 0UL);
+        
+        bool is64Bit = magicVal?.ToString()?.Contains("Pe32Plus") ?? false;
+        int imageBaseSize = is64Bit ? 8 : 4;
+        
+        
+        ulong imageBaseNumeric = 0;
+        try { imageBaseNumeric = Convert.ToUInt64(imageBaseVal ?? 0UL); } catch { }
+        
         AddField(optHeaderNode, "ImageBase", 24, imageBaseSize,
             imageBaseNumeric, $"0x{imageBaseNumeric:X}");
+        
+
         AddField(optHeaderNode, "SectionAlignment", 32, 4, optionalHeader.SectionAlignment,
             $"0x{optionalHeader.SectionAlignment:X}");
         AddField(optHeaderNode, "FileAlignment", 36, 4, optionalHeader.FileAlignment,
@@ -202,9 +202,17 @@ public class PEMapper : IBinaryMapper
             AddField(sectionNode, "PointerToRawData", 12, 4, ptrRawVal ?? 0, $"0x{Convert.ToUInt32(ptrRawVal ?? 0):X}");
             AddField(sectionNode, "Characteristics", 36, 4, section.Characteristics, section.Characteristics.ToString());
 
+            
+            double entropy = CalculateEntropy(_fileData, (int)(sectionNode.Offset ?? 0), (int)(sectionNode.Size ?? 0));
+            AddField(sectionNode, "Entropy", 0, 0, entropy, $"{entropy:F2} bits");
+            
+
             var color = section.IsContentCode ? Colors.LightGreen :
                        section.IsContentInitializedData ? Colors.LightBlue :
                        section.IsContentUninitializedData ? Colors.LightGray : Colors.LightYellow;
+
+            
+            if (entropy > 7.2) color = Colors.OrangeRed;
 
             CreateRegion($"Section: {sectionNode.Name}", sectionNode.Offset ?? 0, (long)section.GetPhysicalSize(),
                 RegionType.Code, color, sectionNode);
@@ -224,25 +232,17 @@ public class PEMapper : IBinaryMapper
         };
 
         var optHeader = peFile.OptionalHeader;
-
         var dirs = optHeader.DataDirectories;
         if (dirs != null)
         {
-
             if (dirs.Count > 1)
             {
                 var importDir = dirs[1];
                 if (importDir.VirtualAddress != 0 || importDir.Size != 0)
                 {
-                    var importNode = new BinaryStructure
-                    {
-                        Name = "Import Directory",
-                        Type = "IMAGE_IMPORT_DESCRIPTOR"
-                    };
-                    AddField(importNode, "RVA", 0, 4, importDir.VirtualAddress,
-                        $"0x{importDir.VirtualAddress:X8}");
-                    AddField(importNode, "Size", 4, 4, importDir.Size,
-                        $"0x{importDir.Size:X}");
+                    var importNode = new BinaryStructure { Name = "Import Directory", Type = "IMAGE_IMPORT_DESCRIPTOR" };
+                    AddField(importNode, "RVA", 0, 4, importDir.VirtualAddress, $"0x{importDir.VirtualAddress:X8}");
+                    AddField(importNode, "Size", 4, 4, importDir.Size, $"0x{importDir.Size:X}");
                     dirNode.AddChild(importNode);
                 }
             }
@@ -252,19 +252,37 @@ public class PEMapper : IBinaryMapper
                 var exportDir = dirs[0];
                 if (exportDir.VirtualAddress != 0 || exportDir.Size != 0)
                 {
-                    var exportNode = new BinaryStructure
-                    {
-                        Name = "Export Directory",
-                        Type = "IMAGE_EXPORT_DESCRIPTOR"
-                    };
-                    AddField(exportNode, "RVA", 0, 4, exportDir.VirtualAddress,
-                        $"0x{exportDir.VirtualAddress:X8}");
-                    AddField(exportNode, "Size", 4, 4, exportDir.Size,
-                        $"0x{exportDir.Size:X}");
+                    var exportNode = new BinaryStructure { Name = "Export Directory", Type = "IMAGE_EXPORT_DESCRIPTOR" };
+                    AddField(exportNode, "RVA", 0, 4, exportDir.VirtualAddress, $"0x{exportDir.VirtualAddress:X8}");
+                    AddField(exportNode, "Size", 4, 4, exportDir.Size, $"0x{exportDir.Size:X}");
                     dirNode.AddChild(exportNode);
                 }
             }
         }
+
+        
+        try
+        {
+            var peImage = PEImage.FromFile(peFile);
+            if (peImage.Imports.Count > 0)
+            {
+                var detailedNode = new BinaryStructure { Name = "Imports (Detailed)", Type = "Directory" };
+                foreach (var module in peImage.Imports)
+                {
+                    var modNode = new BinaryStructure { Name = module.Name ?? "unknown.dll", Type = "Module" };
+                    foreach (var symbol in module.Symbols)
+                    {
+                        string funcName = symbol.IsImportByName ? (symbol.Name ?? "?") : $"Ordinal_{symbol.Ordinal}";
+                        uint rva = symbol.AddressTableEntry?.Rva ?? 0;
+                        AddField(modNode, funcName, 0, 0, rva, $"RVA: 0x{rva:X8}");
+                    }
+                    detailedNode.AddChild(modNode);
+                }
+                dirNode.AddChild(detailedNode);
+            }
+        }
+        catch { }
+        
 
         root.AddChild(dirNode);
     }
@@ -328,22 +346,30 @@ public class PEMapper : IBinaryMapper
                 if (current == null) { found = false; break; }
                 var t = current.GetType();
                 var prop = t.GetProperty(part);
-                if (prop != null)
-                {
-                    current = prop.GetValue(current);
-                    continue;
-                }
+                if (prop != null) { current = prop.GetValue(current); continue; }
                 var field = t.GetField(part);
-                if (field != null)
-                {
-                    current = field.GetValue(current);
-                    continue;
-                }
+                if (field != null) { current = field.GetValue(current); continue; }
                 found = false;
                 break;
             }
             if (found) return current;
         }
         return null;
+    }
+
+    
+    private static double CalculateEntropy(byte[] data, int offset, int length)
+    {
+        if (length <= 0 || offset < 0 || offset + length > data.Length) return 0;
+        int[] counts = new int[256];
+        for (int i = 0; i < length; i++) counts[data[offset + i]]++;
+        double entropy = 0;
+        foreach (int count in counts)
+        {
+            if (count == 0) continue;
+            double p = (double)count / length;
+            entropy -= p * Math.Log(p, 2);
+        }
+        return entropy;
     }
 }

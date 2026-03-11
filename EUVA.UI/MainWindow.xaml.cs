@@ -254,6 +254,7 @@ public partial class MainWindow : Window
     private readonly Stack<(long Offset, byte[] Old, byte[] New)> _undoStack = new();
     private readonly Stack<int> _transactionSteps = new();
     private static readonly string BaseDir = AppDomain.CurrentDomain.BaseDirectory;
+    private string? _loadedFilePath;
 
     private FileStream? _rawVideoStream;
     private byte[]? _frameBuffer;
@@ -265,6 +266,7 @@ public partial class MainWindow : Window
     private volatile bool _isProcessingScript = false;
     private string? _lastScriptPath;
     private bool IsLittleEndian = true;
+
 
     private readonly string ConfigPath =
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hotkey.cfg");
@@ -401,6 +403,59 @@ public partial class MainWindow : Window
 
             StructureTree.RootStructure = structure;
             HexView.Regions = _mapper.GetRegions().ToList();
+
+try
+{
+    LogMessage("Parsing IAT for WinAPI symbols...");
+    var iatParser = new EUVA.Core.Parsing.PeIatParser();
+    
+   
+    ulong imageBase = 0x400000; 
+
+  
+    if (headerData.Length > 0x40)
+    {
+        
+        int peOffset = BitConverter.ToInt32(headerData, 0x3C);
+        
+        if (peOffset > 0 && peOffset + 26 < headerData.Length)
+        {
+            ushort peSig = BitConverter.ToUInt16(headerData, peOffset);
+            ushort magic = BitConverter.ToUInt16(headerData, peOffset + 24);
+            
+            LogMessage($"[Debug] PE Offset: 0x{peOffset:X}, Magic: 0x{magic:X}");
+
+            if (magic == 0x20B) 
+            {
+                imageBase = 0x140000000;
+                LogMessage("[System] x64 detected via Magic 0x20B. Switching to x64 Base.");
+            }
+            else if (magic == 0x10B) 
+            {
+                imageBase = 0x400000;
+                LogMessage("[System] x86 detected via Magic 0x10B.");
+            }
+        }
+    }
+
+    LogMessage($"[System] Final ImageBase for IAT: 0x{imageBase:X}");
+
+    using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+    {
+        if (iatParser.Parse(fs, imageBase))
+        {
+            _pseudocodeGen.ResolvedImports = iatParser.ParsedImports;
+            _pseudocodeGen.SetImports(iatParser.ParsedImports);
+            LogMessage($"[IAT] Resolved {_pseudocodeGen.ResolvedImports.Count} imports.");
+        }
+    }
+
+}
+
+catch (Exception iatEx)
+{
+    LogMessage($"IAT Error: {iatEx.Message}");
+}
             ByteMinimap.SetDataSource((offset, buf, count) =>
             {
                 int toRead = (int)Math.Min(count, fileSize - offset);
@@ -408,6 +463,7 @@ public partial class MainWindow : Window
                 HexView.ReadBytes(offset, buf.AsSpan(0, toRead));
                 return toRead;
             }, fileSize);
+            
             StatusText.Text = $"Loaded: {Path.GetFileName(filePath)} ({fileSize:N0} bytes)";
             LogMessage("File mapped successfully");
 
@@ -416,8 +472,11 @@ public partial class MainWindow : Window
                 _undoStack.Clear();
                 _transactionSteps.Clear();
             }
+            
+            _loadedFilePath = filePath;
             OnFileLoaded();
             RefreshDisasmOnFileLoad();
+            RefreshDecompOnFileLoad(); 
         }
         catch (Exception ex)
         {
@@ -1215,6 +1274,13 @@ public partial class MainWindow : Window
         if (key == Key.D && Keyboard.Modifiers == ModifierKeys.Control)
         {
             MenuDisassembler_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        if (key == Key.E && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            MenuDecompiler_Click(this, new RoutedEventArgs());
             e.Handled = true;
             return;
         }

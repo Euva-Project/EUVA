@@ -42,6 +42,7 @@ By using EUVA, you acknowledge that you are solely responsible for your actions,
 - **Addition of the Yara-X rules engine** which allows for matching against thousands of pre-built rules for binary file analysis.
 - **Byte minimap** Allows you to instantly scan the hex grid of a binary file, simplifying research and instantly identifying where packed code or similar may be located.
 - **Disassembler** An iced-based disassembler will help in analyzing binary files and will present the binary file as readable logic.
+- **Decompiler** Decompile x64, x86 binaries and get pseudocode in C/C++ format
 
 ---
 
@@ -61,18 +62,20 @@ To find out how a particular subsystem works, you can read the relevant document
 - [Addition-of-the-Yara-X-rules-engine](docs/EuvaUseYaraX.md)
 - [Byte minimap](docs/byteminimap.md)
 - [Disassembler](docs/Disassembler.md)
-
+- [Decompiler](docs/Decompiler.md)
 ---
 
 ## Quick Start
 
 **Requirements**
 
-- .NET 8.0 SDK and above
-- С# 12.0 compiler
-- AsmResolver 5.5.1
+- .NET 8.0 SDK 
+- С# ^12.0 compiler
+- AsmResolver >= 5.5.1
 - DefenceTechSecurity.Yarax Release 1.0.1-release.yrx1.12.0
-- Iced Disassembler
+- Iced Disassembler >= 1.21.0
+- Microsoft Msagl >= 1.1.6
+
 
 ```
 git clone https://github.com/pumpkin-bit/EUVA.git
@@ -109,6 +112,7 @@ You can install either the native version from the resilient library or compile 
 - `View byte` - `F3`              View the latest bytes changes
 - `View Yara Matches` - `Shift+F3` View matches found by Yara
 - `View Disassembler` - `Ctrl+D` View Disassembler
+- `View Decompiler` - `Ctrl+E` View Decompiler, use `F5` to switch between graphics mode and text mode
 
 **You can reassign hotkeys by loading (via the settings in the program menu) and editing the .htk file.**
 

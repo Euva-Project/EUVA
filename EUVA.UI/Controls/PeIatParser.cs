@@ -1,0 +1,163 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace EUVA.Core.Parsing
+{
+    public class PeIatParser
+    {
+        
+        public Dictionary<ulong, string> ParsedImports { get; } = new Dictionary<ulong, string>();
+
+        private struct SectionHeader
+        {
+            public string Name;
+            public uint VirtualAddress;
+            public uint SizeOfRawData;
+            public uint PointerToRawData;
+        }
+
+        public bool Parse(Stream stream, ulong imageBase)
+        {
+            try
+            {
+                using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: true);
+                
+                
+                reader.BaseStream.Position = 0x3C; 
+                uint peOffset = reader.ReadUInt32();
+                
+                reader.BaseStream.Position = peOffset;
+                uint peSignature = reader.ReadUInt32();
+                if (peSignature != 0x00004550) return false; 
+
+                
+                ushort machine = reader.ReadUInt16(); 
+                ushort numberOfSections = reader.ReadUInt16();
+                reader.BaseStream.Position += 16; 
+
+                
+                ushort magic = reader.ReadUInt16(); 
+                bool is64Bit = magic == 0x20B;
+
+                
+                
+                uint dataDirOffset = is64Bit ? 112u : 96u;
+                reader.BaseStream.Position += (dataDirOffset - 2); 
+
+                
+                reader.BaseStream.Position += 8; 
+                uint importRva = reader.ReadUInt32();
+                uint importSize = reader.ReadUInt32();
+
+                if (importRva == 0 || importSize == 0) return true; 
+
+                
+                reader.BaseStream.Position += (14 * 8);
+
+                
+                var sections = new List<SectionHeader>();
+                for (int i = 0; i < numberOfSections; i++)
+                {
+                    var sec = new SectionHeader();
+                    sec.Name = Encoding.ASCII.GetString(reader.ReadBytes(8)).TrimEnd('\0');
+                    sec.VirtualAddress = reader.ReadUInt32(); 
+                    reader.BaseStream.Position -= 4; 
+                    reader.BaseStream.Position += 4; 
+                    sec.VirtualAddress = reader.ReadUInt32();
+                    sec.SizeOfRawData = reader.ReadUInt32();
+                    sec.PointerToRawData = reader.ReadUInt32();
+                    reader.BaseStream.Position += 16; 
+                    sections.Add(sec);
+                }
+
+                uint RvaToOffset(uint rva)
+                {
+                    foreach (var sec in sections)
+                    {
+                        if (rva >= sec.VirtualAddress && rva < sec.VirtualAddress + sec.SizeOfRawData)
+                        {
+                            return rva - sec.VirtualAddress + sec.PointerToRawData;
+                        }
+                    }
+                    return rva; 
+                }
+
+                uint importOffset = RvaToOffset(importRva);
+                reader.BaseStream.Position = importOffset;
+
+                while (true)
+                {
+                    uint originalFirstThunk = reader.ReadUInt32(); 
+                    uint timeDateStamp = reader.ReadUInt32();
+                    uint forwarderChain = reader.ReadUInt32();
+                    uint nameRva = reader.ReadUInt32();
+                    uint firstThunk = reader.ReadUInt32();
+
+                    if (originalFirstThunk == 0 && nameRva == 0) break;
+
+                   
+                    long savedPos = reader.BaseStream.Position;
+                    reader.BaseStream.Position = RvaToOffset(nameRva);
+                    string dllName = ReadNullTerminatedString(reader).ToLower();
+
+                   
+                    if (dllName.EndsWith(".dll")) dllName = dllName.Substring(0, dllName.Length - 4);
+
+                  
+                    uint thunkRva = originalFirstThunk != 0 ? originalFirstThunk : firstThunk;
+                    reader.BaseStream.Position = RvaToOffset(thunkRva);
+
+                    int thunkIndex = 0;
+                    while (true)
+                    {
+                        ulong thunkData = is64Bit ? reader.ReadUInt64() : reader.ReadUInt32();
+                        if (thunkData == 0) break;
+
+                        ulong iatVirtualAddress = imageBase + firstThunk + (ulong)(thunkIndex * (is64Bit ? 8 : 4));
+
+                        bool isOrdinal = is64Bit ? (thunkData & 0x8000000000000000) != 0 : (thunkData & 0x80000000) != 0;
+
+                        if (isOrdinal)
+                        {
+                            ulong ordinal = thunkData & 0xFFFF;
+                            ParsedImports[iatVirtualAddress] = $"{dllName}::Ordinal_{ordinal}";
+                        }
+                        else
+                        {
+                            uint funcNameRva = (uint)(thunkData & 0x7FFFFFFF);
+                            long posBeforeName = reader.BaseStream.Position;
+                            
+                            reader.BaseStream.Position = RvaToOffset(funcNameRva) + 2; 
+                            string funcName = ReadNullTerminatedString(reader);
+                            
+                            ParsedImports[iatVirtualAddress] = $"{dllName}::{funcName}";
+                            
+                            reader.BaseStream.Position = posBeforeName;
+                        }
+                        thunkIndex++;
+                    }
+
+                    reader.BaseStream.Position = savedPos;
+                }
+
+                return true;
+            }
+            catch
+            {
+                return false; 
+            }
+        }
+
+        private string ReadNullTerminatedString(BinaryReader reader)
+        {
+            var bytes = new List<byte>();
+            byte b;
+            while ((b = reader.ReadByte()) != 0) bytes.Add(b);
+            return Encoding.ASCII.GetString(bytes.ToArray());
+        }
+    }
+}

@@ -15,6 +15,8 @@ using EUVA.Core.Disassembly;
 namespace EUVA.UI.Controls;
 
 
+public enum DisasmDisplayMode { HexAndDisasm, DisasmOnly }
+
 public sealed class DisassemblerHexView : FrameworkElement
 {
     
@@ -80,7 +82,13 @@ public sealed class DisassemblerHexView : FrameworkElement
         }
     }
 
-    
+    private DisasmDisplayMode _displayMode = DisasmDisplayMode.HexAndDisasm;
+    public DisasmDisplayMode DisplayMode
+    {
+        get => _displayMode;
+        set { _displayMode = value; RecalcLayout(); Redraw(); }
+    }
+
     public readonly struct PeSectionInfo
     {
         public readonly string Name;
@@ -313,9 +321,16 @@ public sealed class DisassemblerHexView : FrameworkElement
     {
         _offsetColPx = (int)(110 * _pixelsPerDip);
         _hexStartPx  = _offsetColPx + (int)(12 * _pixelsPerDip);
-        
-        int hexW = (int)(MaxHexBytesShown * 3 * CharWidth * _pixelsPerDip);
-        _asmStartPx = _hexStartPx + hexW + (int)(16 * _pixelsPerDip);
+
+        if (_displayMode == DisasmDisplayMode.DisasmOnly)
+        {
+            _asmStartPx = _offsetColPx + (int)(16 * _pixelsPerDip);
+        }
+        else
+        {
+            int hexW = (int)(MaxHexBytesShown * 3 * CharWidth * _pixelsPerDip);
+            _asmStartPx = _hexStartPx + hexW + (int)(16 * _pixelsPerDip);
+        }
     }
 
     private int ViewportLines => _bmpH > 0 ? (int)(_bmpH / (LineHeight * _pixelsPerDip)) + 2 : 10;
@@ -406,7 +421,8 @@ public sealed class DisassemblerHexView : FrameworkElement
         
         FillRect(0, 0, _bmpW, hdrH, _cHeaderBg);
         Str("  Address", 0, (int)(5*_pixelsPerDip), _cHeader);
-        Str("Hex Bytes", _hexStartPx, (int)(5*_pixelsPerDip), _cHeader);
+        if (_displayMode == DisasmDisplayMode.HexAndDisasm)
+            Str("Hex Bytes", _hexStartPx, (int)(5*_pixelsPerDip), _cHeader);
         Str("Disassembly", _asmStartPx, (int)(5*_pixelsPerDip), _cHeader);
         FillRect(0, hdrH-(int)_pixelsPerDip, _bmpW, (int)_pixelsPerDip, _cSep);
 
@@ -424,7 +440,8 @@ public sealed class DisassemblerHexView : FrameworkElement
 
         
         FillRect(_offsetColPx, 0, (int)_pixelsPerDip, _bmpH, _cSep);
-        FillRect(_asmStartPx - (int)(8*_pixelsPerDip), 0, (int)_pixelsPerDip, _bmpH, _cSep);
+        if (_displayMode == DisasmDisplayMode.HexAndDisasm)
+            FillRect(_asmStartPx - (int)(8*_pixelsPerDip), 0, (int)_pixelsPerDip, _bmpH, _cSep);
 
         
         if (_visibleLines != null)
@@ -509,30 +526,31 @@ public sealed class DisassemblerHexView : FrameworkElement
         
         Str($"{ln.Offset:X8}", (int)Math.Floor(8*_pixelsPerDip), yPx, _cOffset);
 
-        
-        int hexStep = (int)Math.Floor(3 * CharWidth * _pixelsPerDip);
-        int hexCellW = (int)Math.Floor(2 * CharWidth * _pixelsPerDip);
-        long startActOff = ln.Offset - (long)_accessor!.PointerOffset;
-
-        for (int b = 0; b < ln.Length && b < MaxHexBytesShown; b++)
+        if (_displayMode == DisasmDisplayMode.HexAndDisasm)
         {
-            if (ln.Offset + b >= _fileLength) break;  
-            byte v = mapPtr[startActOff + b];
-            int xPx = _hexStartPx + b * hexStep;
-            long byteAddr = ln.Offset + b;
+            int hexStep = (int)Math.Floor(3 * CharWidth * _pixelsPerDip);
+            int hexCellW = (int)Math.Floor(2 * CharWidth * _pixelsPerDip);
+            long startActOff = ln.Offset - (long)_accessor!.PointerOffset;
 
-            bool isCursor = (byteAddr == _selectedOffset);
-            if (isCursor)
-                FillRect(xPx - 1, yPx, hexCellW + 2, CellH - 1, _cCursorBg);
+            for (int b = 0; b < ln.Length && b < MaxHexBytesShown; b++)
+            {
+                if (ln.Offset + b >= _fileLength) break;
+                byte v = mapPtr[startActOff + b];
+                int xPx = _hexStartPx + b * hexStep;
+                long byteAddr = ln.Offset + b;
 
-            uint col = isCursor ? _cCursorFg : ByteColor(v);
-            Blit(HexHi(v), xPx, yPx, col);
-            Blit(HexLo(v), xPx + CellW, yPx, col);
+                bool isCursor = (byteAddr == _selectedOffset);
+                if (isCursor)
+                    FillRect(xPx - 1, yPx, hexCellW + 2, CellH - 1, _cCursorBg);
+
+                uint col = isCursor ? _cCursorFg : ByteColor(v);
+                Blit(HexHi(v), xPx, yPx, col);
+                Blit(HexLo(v), xPx + CellW, yPx, col);
+            }
+
+            if (ln.Length > MaxHexBytesShown)
+                Blit('.', _hexStartPx + MaxHexBytesShown * hexStep, yPx, _cHeader);
         }
-
-        
-        if (ln.Length > MaxHexBytesShown)
-            Blit('.', _hexStartPx + MaxHexBytesShown * hexStep, yPx, _cHeader);
 
         
         fixed (char* txt = ln.TextBuffer)
@@ -578,18 +596,24 @@ public sealed class DisassemblerHexView : FrameworkElement
         if (_visibleLines == null || lineIdx < 0 || lineIdx >= _visibleLineCount) return;
 
         ref var ln = ref _visibleLines[lineIdx];
-        double hexStartDip = _hexStartPx / _pixelsPerDip;
-        int hexStep = (int)Math.Round(3 * CharWidth);
-
         long clicked;
-        if (pos.X >= hexStartDip && pos.X < hexStartDip + ln.Length * 3 * CharWidth)
+
+        if (_displayMode == DisasmDisplayMode.HexAndDisasm)
         {
-            int bi = (int)((pos.X - hexStartDip) / (3 * CharWidth));
-            bi = Math.Clamp(bi, 0, ln.Length - 1);
-            clicked = ln.Offset + bi;
+            double hexStartDip = _hexStartPx / _pixelsPerDip;
+            if (pos.X >= hexStartDip && pos.X < hexStartDip + ln.Length * 3 * CharWidth)
+            {
+                int bi = (int)((pos.X - hexStartDip) / (3 * CharWidth));
+                bi = Math.Clamp(bi, 0, ln.Length - 1);
+                clicked = ln.Offset + bi;
+            }
+            else
+                clicked = ln.Offset;
         }
         else
+        {
             clicked = ln.Offset;
+        }
 
         _selectedOffset = clicked;
         OffsetSelected?.Invoke(this, clicked);

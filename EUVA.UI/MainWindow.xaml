@@ -341,6 +341,9 @@
                         <MenuItem Header="Disassembler"
                                   Click="MenuDisassembler_Click"
                                   InputGestureText="Ctrl+D"/>
+                        <MenuItem Header="Decompiler"
+                                  Click="MenuDecompiler_Click"
+                                  InputGestureText="Ctrl+Shift+D"/>
                     </MenuItem>
                 </Menu>
 
