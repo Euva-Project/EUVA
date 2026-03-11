@@ -378,7 +378,7 @@ public sealed class PseudocodeEmitter
         return expr;
     }
 
-    private string FormatExpression(IrInstruction instr, IrBlock currentBlock = null, bool forceExpression = false)
+    private string FormatExpression(IrInstruction instr, IrBlock? currentBlock = null, bool forceExpression = false)
     {
         var block = currentBlock ?? _currentEmitBlock;
         bool definesDest = instr.DefinesDest && !forceExpression;
@@ -586,7 +586,7 @@ public sealed class PseudocodeEmitter
         string methodCall;
 
        
-        VTableDetector.VTableCall vtMatch = null;
+        VTableDetector.VTableCall? vtMatch = null;
         foreach (var v in _vtables)
         {
             if (v.InstructionIndex >= 0 && instr.OriginalAddress > 0)
@@ -775,8 +775,8 @@ public sealed class PseudocodeEmitter
         }
 
         var parts = new List<string>();
-        string baseStr = null;
-        string idxStr = null;
+        string? baseStr = null;
+        string? idxStr = null;
 
         if (op.MemBase != Register.None)
         {
