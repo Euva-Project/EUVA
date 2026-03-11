@@ -39,7 +39,6 @@ public class ByteMinimapControl : FrameworkElement
     }
     private CancellationTokenSource? _buildCts;
     private volatile bool _stripReady;
-    private bool _needsFullRedraw = true;
     private uint _colBackground;
     private uint _colViewport;
     private uint _colViewportBorder;
@@ -168,7 +167,6 @@ public class ByteMinimapControl : FrameworkElement
                     _mapStripHeight = mapH;
                     _mapFileLength = fileLen;
                     _stripReady = true;
-                    _needsFullRedraw = true;
                     InvalidateVisual();
                 });
             }
@@ -472,7 +470,6 @@ public class ByteMinimapControl : FrameworkElement
         _bitmap = new WriteableBitmap(w, h, 96.0 * _pixelsPerDip, 96.0 * _pixelsPerDip, PixelFormats.Bgra32, null);
         _backBuffer = new uint[w * h];
         _image.Source = _bitmap;
-        _needsFullRedraw = true;
     }
 
     private unsafe void FlushBitmap()
