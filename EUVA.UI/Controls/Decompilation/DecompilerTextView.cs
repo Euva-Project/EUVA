@@ -8,10 +8,10 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EUVA.Core.Disassembly;
-using EUVA.Core.Parsing;
+using EUVA.UI.Parsers;
 using System.Text.RegularExpressions;
 
-namespace EUVA.UI.Controls;
+namespace EUVA.UI.Controls.Decompilation;
 
 public sealed class DecompilerTextView : FrameworkElement, IDisposable
 {

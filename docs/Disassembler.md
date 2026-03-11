@@ -33,4 +33,4 @@ To use the disassembler, press Ctrl+D. This module requires iced and the absence
 
 Sample:
 [DisassemblyEngine.cs](/EUVA.Core/Disassembly/DisassemblyEngine.cs)
-[DisassemblerHexView.cs](/EUVA.UI/Controls/DisassemblerHexView.cs)
+[DisassemblerHexView.cs](/EUVA.UI/Controls/Hex/DisassemblerHexView.cs)

@@ -5,7 +5,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using EUVA.UI.Controls;
-using static EUVA.UI.Controls.DisassemblerHexView;
+using EUVA.UI.Controls.Hex;
+using static EUVA.UI.Controls.Hex.DisassemblerHexView;
 
 namespace EUVA.UI;
 

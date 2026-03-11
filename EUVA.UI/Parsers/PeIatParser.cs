@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace EUVA.Core.Parsing
+namespace EUVA.UI.Parsers
 {
     public class PeIatParser
     {

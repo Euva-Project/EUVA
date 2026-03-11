@@ -18,6 +18,11 @@ using EUVA.UI.Theming;
 using System.Windows.Controls;
 using System.Windows.Media;
 using EUVA.UI.Controls;
+using EUVA.UI.Controls.Decompilation;
+using EUVA.UI.Controls.Hex;
+using EUVA.UI.Controls.Properties;
+using EUVA.UI.Controls.Trees;
+using EUVA.UI.Parsers;
 using System.Text.RegularExpressions;
 using System.Linq;
 using System.Diagnostics;
@@ -407,7 +412,7 @@ public partial class MainWindow : Window
 try
 {
     LogMessage("Parsing IAT for WinAPI symbols...");
-    var iatParser = new EUVA.Core.Parsing.PeIatParser();
+    var iatParser = new EUVA.UI.Parsers.PeIatParser();
     
    
     ulong imageBase = 0x400000; 

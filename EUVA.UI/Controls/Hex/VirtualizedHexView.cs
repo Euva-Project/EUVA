@@ -16,7 +16,7 @@ using System.Windows.Media.Imaging;
 using EUVA.Core.Models;
 using EUVA.UI;
 
-namespace EUVA.UI.Controls;
+namespace EUVA.UI.Controls.Hex;
 
 public class VirtualizedHexView : FrameworkElement
 {

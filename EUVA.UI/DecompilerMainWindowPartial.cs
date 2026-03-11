@@ -8,7 +8,9 @@ using AsmResolver.PE;
 using AsmResolver.PE.File;
 using EUVA.Core.Disassembly;
 using EUVA.UI.Controls;
-using static EUVA.UI.Controls.DisassemblerHexView;
+using EUVA.UI.Controls.Decompilation;
+using EUVA.UI.Controls.Hex;
+using static EUVA.UI.Controls.Hex.DisassemblerHexView;
 
 namespace EUVA.UI;
 

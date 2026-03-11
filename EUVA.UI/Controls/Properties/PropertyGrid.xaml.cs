@@ -5,7 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using EUVA.Core.Models;
 
-namespace EUVA.UI.Controls;
+namespace EUVA.UI.Controls.Properties;
 
 public partial class PropertyGrid : UserControl
 {

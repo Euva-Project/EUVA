@@ -126,5 +126,5 @@ The following catalog provides contextual indexing of the core EUVA repository m
 * [StructReconstructor.cs](../EUVA.Core/Disassembly/Analysis/StructReconstructor.cs) - Discovers structured memory offset patterns representing class/struct definitions.
 
 ### Presentation Layer
-* [DecompilerTextView.cs](../EUVA.UI/Controls/DecompilerTextView.cs) - Windows Presentation Foundation logical view binding formatting strings with UI presentation layouts.
-* [DecompilerGraphView.cs](../EUVA.UI/Controls/DecompilerGraphView.cs) - Renders mathematical execution graphs associated with structural components.
+* [DecompilerTextView.cs](../EUVA.UI/Controls/Decompilation/DecompilerTextView.cs) - Windows Presentation Foundation logical view binding formatting strings with UI presentation layouts.
+* [DecompilerGraphView.cs](../EUVA.UI/Controls/Decompilation/DecompilerGraphView.cs) - Renders mathematical execution graphs associated with structural components.

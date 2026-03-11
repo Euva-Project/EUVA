@@ -4,6 +4,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:EUVA.UI.Controls"
+        xmlns:hex="clr-namespace:EUVA.UI.Controls.Hex"
+        xmlns:decomp="clr-namespace:EUVA.UI.Controls.Decompilation"
+        xmlns:props="clr-namespace:EUVA.UI.Controls.Properties"
+        xmlns:trees="clr-namespace:EUVA.UI.Controls.Trees"
         Title="EUVA"
         Height="920" Width="1640"
         MinHeight="600" MinWidth="1000"
@@ -384,7 +388,7 @@
                                    FontFamily="Segoe UI" FontSize="11"
                                    FontWeight="SemiBold"/>
                     </Border>
-                    <controls:StructureTreeView Grid.Row="1"
+                    <trees:StructureTreeView Grid.Row="1"
                         x:Name="StructureTree"
                         StructureSelected="StructureTree_StructureSelected"/>
                 </Grid>
@@ -403,11 +407,11 @@
                         <ColumnDefinition Width="1"/>
                         <ColumnDefinition Width="60"/>
                     </Grid.ColumnDefinitions>
-                    <controls:VirtualizedHexView x:Name="HexView"
+                    <hex:VirtualizedHexView x:Name="HexView"
                         Grid.Column="0"
                         OffsetSelected="HexView_OffsetSelected"/>
                     <Rectangle Grid.Column="1" Fill="#313244" Width="1"/>
-                    <controls:ByteMinimapControl x:Name="ByteMinimap"
+                    <decomp:ByteMinimapControl x:Name="ByteMinimap"
                         Grid.Column="2"
                         NavigateRequested="ByteMinimap_NavigateRequested"/>
                 </Grid>
@@ -615,7 +619,7 @@
                     </TabItem>
 
                     <TabItem Header="Properties">
-                        <controls:PropertyGrid x:Name="PropertyGrid"/>
+                        <props:PropertyGrid x:Name="PropertyGrid"/>
                     </TabItem>
 
                 </TabControl>

@@ -11,7 +11,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EUVA.Core.Disassembly;
 
-namespace EUVA.UI.Controls;
+namespace EUVA.UI.Controls.Decompilation;
 
 
 public sealed class DecompilerGraphView : FrameworkElement, IDisposable

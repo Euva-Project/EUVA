@@ -10,4 +10,4 @@ This implementation is scalable because the heavy math is moved to the backgroun
 ---
 
 Sample:
-[ByteMinimapControl.cs](/EUVA.UI/Controls/ByteMinimapControl.cs)
+[ByteMinimapControl.cs](/EUVA.UI/Controls/Decompilation/ByteMinimapControl.cs)

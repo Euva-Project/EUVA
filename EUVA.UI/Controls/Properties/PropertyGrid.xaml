@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 
-<UserControl x:Class="EUVA.UI.Controls.PropertyGrid"
+<UserControl x:Class="EUVA.UI.Controls.Properties.PropertyGrid"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#181825">

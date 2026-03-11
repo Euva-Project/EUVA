@@ -13,7 +13,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EUVA.Core.Models;
 
-namespace EUVA.UI.Controls;
+namespace EUVA.UI.Controls.Decompilation;
 public class ByteMinimapControl : FrameworkElement
 {
     
