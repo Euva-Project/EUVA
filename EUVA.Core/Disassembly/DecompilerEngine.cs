@@ -2,8 +2,9 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using EUVA.Core.Scripting;
 using Microsoft.Msagl.Core.Geometry;
 using Microsoft.Msagl.Core.Geometry.Curves;
 using Microsoft.Msagl.Core.Layout;
@@ -56,6 +57,8 @@ public sealed class DecompilerEngine
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public unsafe LayoutResult BuildFunctionGraph(byte* data, int length, long baseAddress, int bitness, PseudocodeGenerator? pseudoGen = null, byte* fileMap = null, long fileLength = 0)
     {
+        ScriptLoader.Instance.PrepareFunctionPassesAsync().GetAwaiter().GetResult();
+        
         var blocks = _scanner.ScanFunction(data, length, baseAddress, bitness);
         if (blocks.Length == 0)
             return new LayoutResult();

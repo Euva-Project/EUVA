@@ -316,7 +316,7 @@ public partial class MainWindow : Window
         ConsoleLog.ScrollToEnd();
     }
 
-    private void InitializeSystemSettings()
+    private async void InitializeSystemSettings()
     {
         LogMessage("[System] Initializing environment...");
         HotkeyManager.LoadDefaults();
@@ -341,6 +341,18 @@ public partial class MainWindow : Window
             }
             catch (Exception ex) { LogMessage($"[ERROR] Auto-load failed: {ex.Message}"); }
         }
+        
+        try 
+        {
+            LogMessage("[System] Loading Glass Engine C# Scripts...");
+            await EUVA.Core.Scripting.ScriptLoader.Instance.InitializeAsync();
+            LogMessage("[System] Scripts loaded successfully.");
+        }
+        catch (Exception ex)
+        {
+            LogMessage($"[ERROR] Script loader failed: {ex.Message}");
+        }
+
         HexView.InvalidateVisual();
     }
 

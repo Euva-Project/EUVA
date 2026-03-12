@@ -224,12 +224,14 @@ public partial class MainWindow
                 try
                 {
                     
-                    int maxLen = (int)Math.Min(16384, HexView.FileLength - fileOffset);
+                    var length = HexView.FileLength - fileOffset;
+                    if (length <= 0) return;
+
+                    var maxLen = (int)Math.Min(16384, length);
                     if (maxLen <= 0) return;
 
                     var result = _decompEngine.BuildFunctionGraph(
                         ptr + fileOffset, maxLen, fileOffset, 64, _pseudocodeGen, ptr, HexView.FileLength);
-
 
                     Dispatcher.Invoke(() =>
                     {

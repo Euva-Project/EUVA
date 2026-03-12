@@ -93,6 +93,66 @@ The semantic meaning of registers is inferred via an advanced, constraint-based 
 ### 1.7 Pseudocode Emission
 The terminal stage executes a forward traversal over the reconstructed AST elements. The **Pseudocode Emitter** formats nodes into strings conforming closely to idiomatic C++ semantics. The emission stage involves backward context scanning for translating native CPU flags into high-level boolean conditionals Condition Propagation, mapping arithmetic combinations to shorthand operators Compound Assignments, and isolating temporary SSA suffixes from final outputs.
 
+### 1.8 Glass Engine C# Scripting Integration
+The standard data-flow and heuristic passes mentioned above operate universally. However, heavily obfuscated code, custom virtual machines, and anti-analysis tricks often require manual intervention. The **Glass Engine** exposes the EUVA Decompiler pipeline to external, runtime-compiled C# scripts, granting users total programmatic control over the IR, AST, and Type Systems without needing to recompile the decompiler itself.
+
+#### 1.8.1 Theory & Pipeline Hooks
+The Glass Engine conceptualizes the decompilation pipeline as a series of intercepted states. Scripts can hook into specific checkpoints defined by the `PassStage` enumeration:
+* `PreSsa`: Intercept raw IR before variable versioning. Ideal for repairing deliberately broken Control Flow Graphs (e.g., bypassing `ExitProcess` anti-debug traps).
+* `PostSsa`: Intercept clean, versioned IR. Ideal for custom pattern matching, such as resolving XOR-obfuscated constants or collapsing proprietary math operations.
+* `PreTypeInference`: Intercept the graph before types are guessed. Ideal for injecting manual knowledge e.g., forcing a register to be recognized as a `_PEB*` pointer based on its address.
+* `PostTypeInference`: Fix incorrectly guessed types.
+* `PostStructuring`: Intercept the final AST to rewrite conditional logic or simplify complex boolean expressions before pseudocode emission.
+
+#### 1.8.2 Under the Hood: High-Performance Delegates
+To maintain extreme performance across binaries containing thousands of functions, the Glass Engine does **not** compile scripts on the fly for every function. 
+Instead, it utilizes the Roslyn Compiler `Microsoft.CodeAnalysis.CSharp.Scripting` in a highly optimized manner:
+1. **Application Startup `InitializeAsync`**: The `ScriptLoader` searches the application's `Scripts/` directory for `.cs` files.
+2. **One-Time Compilation**: It reads each script and compiles the syntax tree into memory exactly **once** using `CSharpScript.Create<IDecompilerPass>(...).CreateDelegate()`. This converts the C# text into a native, executable function pointer (delegate).
+3. **Per-Function Invocation `PrepareFunctionPassesAsync`**: When a new function is analyzed, the pre-compiled delegates are instantaneously invoked to spawn fresh instances of the user's `IDecompilerPass`. This eliminates syntax parsing overhead during analysis loops, allowing scripts to execute in microseconds.
+
+#### 1.8.3 Usage Guide
+To write a script, simply create a new `.cs` file in the `Scripts/` directory located next to the main EUVA executable. 
+A script requires only two things:
+1. It must implement the `IDecompilerPass` interface.
+2. It must return a new instance of itself at the bottom of the file (as it is evaluated as a Roslyn script expression).
+
+**Example: A Simple Log Pass**
+```csharp
+using System;
+using EUVA.Core.Scripting;
+using EUVA.Core.Disassembly.Analysis;
+
+public class MyLoggerPass : IDecompilerPass
+{
+    // 1. Choose WHEN this script runs e.g., right after CFG creation, before SSA
+    public PassStage Stage => PassStage.PreSsa;
+
+    // 2. Implement the Execution logic
+    public void Execute(DecompilerContext context)
+    {
+        // The context object gives you full access to the current function's IR blocks
+        Console.WriteLine($"Analyzing function at 0x{context.FunctionAddress:X}");
+        
+        foreach (var block in context.Blocks)
+        {
+            foreach (var instr in block.Instructions)
+            {
+                // You can read, modify, or delete instructions here.
+                if (instr.Opcode == IrOpcode.Xor) 
+                {
+                   // Do something custom...
+                }
+            }
+        }
+    }
+}
+
+// 3. Return the instance so the Glass Engine can load it
+return new MyLoggerPass();
+```
+Upon saving this file to `Scripts/MyLoggerPass.cs` and launching EUVA, the ScriptLoader will automatically compile it, inject it into the `DecompilationPipeline`, and execute your logic every time a function is analyzed.
+
 ---
 
 ## 2. Directory and Source File Mapping

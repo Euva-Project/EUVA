@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using Iced.Intel;
+using EUVA.Core.Scripting;
 
 namespace EUVA.Core.Disassembly.Analysis;
 
@@ -19,6 +20,8 @@ public sealed class DecompilationPipeline
     public List<StructReconstructor.RecoveredStruct>? LastStructs { get; private set; }
     public List<VTableDetector.VTableCall>? LastVTables { get; private set; }
     public StructuredNode? LastStructuredAst { get; private set; }
+    
+    public Dictionary<string, HashSet<ulong>> GlobalStructs { get; set; } = new();
 
     public DecompilationPipeline(int bitness,
         Dictionary<ulong, string>? imports = null,
@@ -81,6 +84,9 @@ public sealed class DecompilationPipeline
         DominanceFrontier.Compute(irBlocks);
         SsaBuilder.Build(irBlocks);
 
+        var ctx = new DecompilerContext(irBlocks, _userRenames, GlobalStructs ?? new(), baseAddress);
+        ScriptLoader.Instance.RunScripts(PassStage.PreSsa, ctx);
+
         for (int pass = 0; pass < 10; pass++)
         {
             int changes = 0;
@@ -94,8 +100,13 @@ public sealed class DecompilationPipeline
 
         DeadCodeElimination.Compact(irBlocks);
         LivenessAnalysis.Compute(irBlocks);
+        ScriptLoader.Instance.RunScripts(PassStage.PostSsa, ctx);
+        
         LastLoops = LoopDetector.Detect(irBlocks);
+        
+        ScriptLoader.Instance.RunScripts(PassStage.PreTypeInference, ctx);
         TypeInference.Infer(irBlocks);
+        ScriptLoader.Instance.RunScripts(PassStage.PostTypeInference, ctx);
         LastStructs = StructReconstructor.Reconstruct(irBlocks);
         LastVTables = VTableDetector.Detect(irBlocks);
         LastSignature = CallingConventionAnalyzer.AnalyzeFunction(irBlocks,
@@ -105,6 +116,9 @@ public sealed class DecompilationPipeline
 
         PopulateLastCmp(irBlocks);
         LastStructuredAst = ControlFlowStructurer.Structure(irBlocks, LastLoops);
+        
+        ctx.AstRoot = LastStructuredAst;
+        ScriptLoader.Instance.RunScripts(PassStage.PostStructuring, ctx);
 
         var emitter = new PseudocodeEmitter(_imports, _userRenames);
         emitter.SetSignature(LastSignature);
