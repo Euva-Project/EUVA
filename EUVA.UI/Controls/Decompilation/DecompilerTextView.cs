@@ -84,7 +84,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
     private GlyphCache? _glyphCache;
     private readonly Image _image = new() { Stretch = Stretch.None };
     private uint _cBg, _cText, _cLineNum, _cBlockHeader, _cCursorLine;
-    private uint _cKeyword, _cType, _cVariable, _cNumber, _cString;
+    private uint _cKeyword, _cType, _cVariable, _cVariableAi, _cNumber, _cString;
     private uint _cFunction, _cOperator, _cPunct, _cComment, _cAddress, _cError, _cSelectionBg;
 
     public event EventHandler? RenameApplied;
@@ -206,6 +206,33 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         else Redraw();
     }
 
+    public void JumpNextAiChange()
+    {
+        if (_flatLines == null || _flatLines.Length == 0) return;
+
+        int startLine = (_cursorLine + 1) % _flatLines.Length;
+        for (int i = 0; i < _flatLines.Length; i++)
+        {
+            int lineIdx = (startLine + i) % _flatLines.Length;
+            var line = _flatLines[lineIdx];
+            if (line.Spans != null)
+            {
+                foreach (var span in line.Spans)
+                {
+                    if (span.Kind == PseudocodeSyntax.VariableAi)
+                    {
+                        _cursorLine = lineIdx;
+                      
+                        int visLines = Math.Max(1, _bmpH / CellH);
+                        _scrollLine = Math.Max(0, lineIdx - visLines / 2);
+                        Redraw();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     private static void FlattenToTextCore(
         LayoutResult layout,
         PseudocodeGenerator? pseudoGen,
@@ -219,8 +246,8 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         string originalName = $"sub_{funcAddr:X}";
         string funcName = originalName;
 
-        if (pseudoGen != null && pseudoGen.TryGetGlobalRename(originalName, out string renamed))
-            funcName = renamed; 
+        if (pseudoGen != null && pseudoGen.TryGetGlobalRename(originalName, out var renamed))
+            funcName = renamed.Name; 
 
         var primaryCtx = pseudoGen?.GetPrimaryClassContext();
         bool isClassMethod = primaryCtx != null && primaryCtx.Value.Confidence >= 0.8;
@@ -231,8 +258,8 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         if (isClassMethod)
         {
             string className = $"Entity_{funcAddr:X}";
-            if (pseudoGen != null && pseudoGen.TryGetGlobalRename("this_class", out string renamedClass))
-                className = renamedClass;
+            if (pseudoGen != null && pseudoGen.TryGetGlobalRename("this_class", out var renamedClass))
+                className = renamedClass.Name;
 
             lines.Add(new PseudocodeLine($"class {className} /* mapped from {classVarName} */ {{", new[] { 
                 new PseudocodeSpan(0, 5, PseudocodeSyntax.Keyword),
@@ -313,6 +340,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         _cKeyword     = C(Color.FromRgb(0xCB, 0xA6, 0xF7)); 
         _cType        = C(Color.FromRgb(0x89, 0xB4, 0xFA)); 
         _cVariable    = C(Color.FromRgb(0xF5, 0xC2, 0xE7)); 
+        _cVariableAi  = C(Color.FromRgb(0xCB, 0xA6, 0xF7)); 
         _cNumber      = C(Color.FromRgb(0xFA, 0xB3, 0x87)); 
         _cString      = C(Color.FromRgb(0xA6, 0xE3, 0xA1)); 
         _cFunction    = C(Color.FromRgb(0x89, 0xDC, 0xEB)); 
@@ -460,6 +488,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         PseudocodeSyntax.Keyword     => _cKeyword,
         PseudocodeSyntax.Type        => _cType,
         PseudocodeSyntax.Variable    => _cVariable,
+        PseudocodeSyntax.VariableAi  => _cVariableAi,
         PseudocodeSyntax.Number      => _cNumber,
         PseudocodeSyntax.String      => _cString,
         PseudocodeSyntax.Function    => _cFunction,

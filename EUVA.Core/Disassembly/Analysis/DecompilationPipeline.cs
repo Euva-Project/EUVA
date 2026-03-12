@@ -11,7 +11,7 @@ public sealed class DecompilationPipeline
     private readonly int _bitness;
     private readonly Dictionary<ulong, string> _imports;
     private readonly Dictionary<long, string> _strings;
-    private readonly Dictionary<string, string> _userRenames;
+    private readonly Dictionary<string, VariableSymbol> _userRenames;
 
     
     public IrBlock[]? LastBlocks { get; private set; }
@@ -26,7 +26,7 @@ public sealed class DecompilationPipeline
     public DecompilationPipeline(int bitness,
         Dictionary<ulong, string>? imports = null,
         Dictionary<long, string>? strings = null,
-        Dictionary<string, string>? userRenames = null)
+        Dictionary<string, VariableSymbol>? userRenames = null)
     {
         _bitness = bitness;
         _imports = imports ?? new();

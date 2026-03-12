@@ -12,7 +12,7 @@ public sealed class PseudocodeGenerator
     private readonly Dictionary<ulong, string> _imports = new();
     private readonly Dictionary<long, string> _strings = new();
     private readonly List<(long Start, long End)> _dataSections = new();
-    private Dictionary<string, string>? _globalRenames;
+    private Dictionary<string, VariableSymbol>? _globalRenames;
     private Dictionary<string, HashSet<ulong>>? _globalStructs;
     private string _currentFuncName = "sub_0";
 
@@ -47,13 +47,13 @@ public sealed class PseudocodeGenerator
     
     public void SetCurrentFunction(string funcName) => _currentFuncName = funcName;
 
-    public void SetGlobalRenames(Dictionary<string, string> globalRenames)
+    public void SetGlobalRenames(Dictionary<string, VariableSymbol> globalRenames)
     {
         _globalRenames = globalRenames;
         _pipeline = null;
     }
 
-    public void SetGlobalContext(Dictionary<string, string> renames, Dictionary<string, HashSet<ulong>> structs)
+    public void SetGlobalContext(Dictionary<string, VariableSymbol> renames, Dictionary<string, HashSet<ulong>> structs)
     {
         _globalRenames = renames;
         _globalStructs = structs;
@@ -61,19 +61,31 @@ public sealed class PseudocodeGenerator
     }
 
     
-    public IReadOnlyDictionary<string, string>? UserRenames => _globalRenames;
+    public IReadOnlyDictionary<string, VariableSymbol>? UserRenames => _globalRenames;
 
-    public void ApplyRename(string oldName, string newName)
+    public event EventHandler<VariableSymbol>? RenameApplied;
+
+    public void ApplyRename(string oldName, string newName, bool isAiGenerated = false)
     {
         _globalRenames ??= new();
-        _globalRenames[oldName] = newName;
+        var sym = new VariableSymbol(oldName, newName, isAiGenerated);
+        _globalRenames[oldName] = sym;
+        _pipeline = null;
+        RenameApplied?.Invoke(this, sym);
+    }
+
+    public void ClearAiRenames()
+    {
+        if (_globalRenames == null) return;
+        var toRemove = _globalRenames.Where(kv => kv.Value.IsAiGenerated).Select(kv => kv.Key).ToList();
+        foreach (var k in toRemove) _globalRenames.Remove(k);
         _pipeline = null;
     }
 
-    public bool TryGetGlobalRename(string name, out string renamed)
+    public bool TryGetGlobalRename(string name, out VariableSymbol renamed)
     {
-        if (_globalRenames != null && _globalRenames.TryGetValue(name, out renamed!)) return true;
-        renamed = name;
+        if (_globalRenames != null && _globalRenames.TryGetValue(name, out renamed)) return true;
+        renamed = new VariableSymbol(name, name);
         return false;
     }
 
@@ -97,6 +109,8 @@ public sealed class PseudocodeGenerator
         return _pipeline!.DecompileFunction(blocks, fileData, fileLength, baseAddress, _currentFuncName);
     }
 
+    public IrBlock[]? LastBlocks => _pipeline?.LastBlocks;
+
     
     public DecompilationPipeline? Pipeline => _pipeline;
 
@@ -104,6 +118,12 @@ public sealed class PseudocodeGenerator
     {
         get => _imports;
         set { _imports.Clear(); foreach (var kv in value) _imports[kv.Key] = kv.Value; _pipeline = null; }
+    }
+
+    public Dictionary<long, string> ResolvedStrings
+    {
+        get => _strings;
+        set { _strings.Clear(); foreach (var kv in value) _strings[kv.Key] = kv.Value; _pipeline = null; }
     }
 
     

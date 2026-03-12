@@ -122,7 +122,7 @@ public sealed class DecompilerGraphView : FrameworkElement, IDisposable
     private uint _cEdgeFallthrough, _cEdgeTaken, _cEdgeDefault, _cEdgeUnconditional;
     private uint _cOffset;
     
-    private uint _cPcKeyword, _cPcType, _cPcVariable, _cPcNumber, _cPcString;
+    private uint _cPcKeyword, _cPcType, _cPcVariable, _cPcVariableAi, _cPcNumber, _cPcString;
     private uint _cPcFunction, _cPcOperator, _cPcPunct, _cPcComment, _cPcAddress;
     private uint _cHighlight;
 
@@ -235,6 +235,7 @@ public sealed class DecompilerGraphView : FrameworkElement, IDisposable
         _cPcKeyword  = C(Color.FromRgb(0xCB, 0xA6, 0xF7)); 
         _cPcType     = C(Color.FromRgb(0x89, 0xB4, 0xFA)); 
         _cPcVariable = C(Color.FromRgb(0xF3, 0x8B, 0xA8)); 
+        _cPcVariableAi = C(Color.FromRgb(0xCB, 0xA6, 0xF7)); 
         _cPcNumber   = C(Color.FromRgb(0xFA, 0xB3, 0x87)); 
         _cPcString   = C(Color.FromRgb(0xA6, 0xE3, 0xA1)); 
         _cPcFunction = C(Color.FromRgb(0x89, 0xDC, 0xEB)); 
@@ -550,6 +551,7 @@ public sealed class DecompilerGraphView : FrameworkElement, IDisposable
         PseudocodeSyntax.Keyword     => _cPcKeyword,
         PseudocodeSyntax.Type        => _cPcType,
         PseudocodeSyntax.Variable    => _cPcVariable,
+        PseudocodeSyntax.VariableAi  => _cPcVariableAi,
         PseudocodeSyntax.Number      => _cPcNumber,
         PseudocodeSyntax.String      => _cPcString,
         PseudocodeSyntax.Function    => _cPcFunction,

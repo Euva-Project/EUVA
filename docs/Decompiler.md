@@ -164,7 +164,68 @@ Upon saving this file to `Scripts/MyLoggerPass.cs` and launching EUVA, the Scrip
 
 ---
 
-## 2. Directory and Source File Mapping
+## 2. AI-Assisted Semantic Reconstruction
+
+While the EUVA Core engine excels at recovering **Logic** control flow, data flow, types, it inherently cannot recover human intentions or variable semantics lost during compilation. The **AI Refactoring Assistant** bridges this gap by utilizing Large Language Models LLMs to transform generic symbols e.g., `v1`, `a1` into meaningful, context-aware names.
+
+### 2.1 The Semantic Gap
+Machine code lacks names. A decompiler can prove that `v1` is a `uint32_t` and acts as a loop counter, but only an LLM can infer that `v1` represents `retry_count` based on its proximity to network-related WinAPI calls and specific error constants.
+
+### 2.2 Technical Pipeline
+The AI integration follows a high-performance, strictly structured pipeline:
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant P as Pipeline
+    participant G as Context Generator
+    participant AI as LLM (OpenRouter/Groq/etc)
+    participant E as Emitter
+
+    U->>P: Clicks "AI Refactor"
+    P->>G: Extracts Mini-IR + Metadata
+    G->>G: Strips offsets & machine noise
+    G->>AI: Sends "Anti-JSON" System Prompt + IR
+    AI-->>P: Returns "old=new" flat mapping
+    P->>P: Applies renames to Global Dictionary
+    P->>E: Redraws Pseudocode
+    E-->>U: Displays /* AI */ marked markers
+```
+
+### 2.3 Context Enrichment (Mini-IR)
+To keep token costs low and accuracy high, EUVA does not send raw pseudocode. Instead, `AiContextGenerator.cs` produces **Mini-IR**:
+*   **Symbol Mapping**: Maps raw addresses to Imported Symbols e.g., `&printf` instead of `0x401000`.
+*   **String Hints**: Injects referenced string literals directly into the logic flow.
+*   **Type Hints**: Appends inferred types to operands so the AI understands data widths.
+*   **Naming Standardization**: Uses `NamingConventions.cs` to ensure the AI and the decompiler use identical keys for variables, preventing "orphan" renames.
+
+### 2.4 High-Performance Parsing
+EUVA uses a custom "Anti-JSON" approach. Instead of expensive JSON serialization, we force the LLM to return simple `key=value` pairs. These are parsed in `AiResponseParser.cs` using `ReadOnlySpan<char>`, allowing for zero-allocation processing that doesn't trigger the Garbage Collector even on massive functions.
+
+### 2.5 User Guide: Step-by-Step
+
+#### Step 1: Configuration
+1.  Open **Start Decompiler -> AI Settings**.
+2.  **Base URL**: Use any OpenAI-compatible endpoint.
+    *   *Examples*: `https://openrouter.ai/api/v1/chat/completions`, `http://localhost:11434/v1` (Ollama) and other providers.
+3.  **API Key**: Your provider's key encrypted via DPAPI.
+4.  **Model Name**: The technical name e.g., `gpt-4o`, `deepseek-ai/DeepSeek-V3`.
+
+#### Step 2: Custom System Prompt
+You can tune the personality of your AI agent.
+*   *Default*: Focuses on standard C++ variable naming.
+*   *Specialized*: Ask it to "use names consistent with Linux Kernel style" or "detect malware patterns and name variables accordingly."
+
+#### Step 3: Refactoring & Review
+1.  Click **AI Refactor** in the Decompiler toolbar.
+2.  Wait for the response (Progress indicated on the button).
+3.  **Jump AI**: Use this button to cycle through every line changed by the AI.
+4.  **/* AI */ Markers**: Look for variables highlighted in purple with an explicit AI comment.
+5.  **Reject AI**: If the LLM hallucinated, one click restores the function to its original state.
+
+---
+
+## 3. Directory and Source File Mapping
 
 The following catalog provides contextual indexing of the core EUVA repository mechanisms and their respective implementations.
 

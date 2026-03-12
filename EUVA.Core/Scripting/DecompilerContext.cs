@@ -10,14 +10,14 @@ public sealed class DecompilerContext
 {
     public IrBlock[] Blocks { get; set; }
     public StructuredNode? AstRoot { get; set; }
-    public Dictionary<string, string> GlobalRenames { get; }
+    public Dictionary<string, VariableSymbol> GlobalRenames { get; }
     public Dictionary<string, HashSet<ulong>> GlobalStructs { get; }
     public PseudocodeEmitter? Emitter { get; }
     public long FunctionAddress { get; }
     
     public DecompilerContext(
         IrBlock[] blocks,
-        Dictionary<string, string> globalRenames,
+        Dictionary<string, VariableSymbol> globalRenames,
         Dictionary<string, HashSet<ulong>> globalStructs,
         long functionAddress,
         PseudocodeEmitter? emitter = null,

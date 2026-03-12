@@ -8,7 +8,7 @@ namespace EUVA.Core.Disassembly.Analysis;
 public sealed class PseudocodeEmitter
 {
     private readonly Dictionary<ulong, string> _imports;
-    private readonly Dictionary<string, string> _userRenames;
+    private readonly Dictionary<string, VariableSymbol> _userRenames;
     private CallingConventionAnalyzer.FunctionSignature? _signature;
     private List<StructReconstructor.RecoveredStruct> _structs = new();
     private List<VTableDetector.VTableCall> _vtables = new();
@@ -16,12 +16,19 @@ public sealed class PseudocodeEmitter
     private IrBlock? _currentEmitBlock;
     private IrBlock[]? _blocks;
 
+    private readonly HashSet<string> _aiNames = new();
+
     public PseudocodeEmitter(
         Dictionary<ulong, string>? imports = null,
-        Dictionary<string, string>? userRenames = null)
+        Dictionary<string, VariableSymbol>? userRenames = null)
     {
         _imports = imports ?? new();
         _userRenames = userRenames ?? new();
+        
+        foreach (var sym in _userRenames.Values)
+        {
+            if (sym.IsAiGenerated) _aiNames.Add(sym.Name);
+        }
     }
 
     public void SetSignature(CallingConventionAnalyzer.FunctionSignature sig) => _signature = sig;
@@ -617,83 +624,37 @@ public sealed class PseudocodeEmitter
         return methodCall;
     }
 
-    private string FormatOperand(IrOperand op)
+    private string FormatOperand(IrOperand op, out bool isAi)
     {
-        switch (op.Kind)
+        isAi = false;
+        string name = op.Kind switch
         {
-            case IrOperandKind.Register:
-                string regName = FormatRegisterName(op);
-                return ApplyRename(regName);
-
-            case IrOperandKind.Constant:
-                return FormatConstant(op.ConstantValue, op.BitSize);
-
-            case IrOperandKind.StackSlot:
-                string varName = FormatStackVar(op.StackOffset, op.SsaVersion);
-                return ApplyRename(varName);
-
-            case IrOperandKind.Memory:
-                return FormatMemAccess(op);
-
-            case IrOperandKind.Flag:
-                return "flags";
-
-            case IrOperandKind.Label:
-                return $"block_{op.BlockIndex}";
-
-            case IrOperandKind.Expression:
-                if (op.Expression == null) return "?";
-                return FormatExpression(op.Expression, null, forceExpression: true);
-
-            default:
-                return "?";
-        }
+            IrOperandKind.Constant => FormatConstant(op.ConstantValue, op.BitSize),
+            IrOperandKind.Register => FormatRegisterName(op),
+            IrOperandKind.Memory => FormatMemAccess(op),
+            IrOperandKind.StackSlot => FormatStackVar(op.StackOffset, op.SsaVersion),
+            IrOperandKind.Expression => FormatExpression(op.Expression!, null, forceExpression: true),
+            IrOperandKind.Flag => "flags",
+            IrOperandKind.Label => $"block_{op.BlockIndex}",
+            _ => "unknown_op"
+        };
+        return op.Kind switch
+        {
+            IrOperandKind.Register or IrOperandKind.StackSlot => GetRenamed(name, out isAi),
+            _ => name
+        };
     }
+
+    private string FormatOperand(IrOperand op) => FormatOperand(op, out _);
 
     private string FormatRegisterName(IrOperand op)
     {
-        if (op.Name != null) return op.Name;
-
-
-        if (op.Register == Register.None)
-            return op.SsaVersion != 0 ? $"tmp_{Math.Abs(op.SsaVersion)}" : "tmp";
-
-        var canonical = op.CanonicalRegister;
-        string baseName = canonical switch
-        {
-            Register.RAX => "rax",
-            Register.RCX => "a1",
-            Register.RDX => "a2",
-            Register.R8 => "a3",
-            Register.R9 => "a4",
-            Register.RBX => "v1",
-            Register.RSI => "v2",
-            Register.RDI => "v3",
-            Register.RBP => "rbp",
-            Register.RSP => "rsp",
-            Register.R10 => "t1",
-            Register.R11 => "t2",
-            Register.R12 => "v4",
-            Register.R13 => "v5",
-            Register.R14 => "v6",
-            Register.R15 => "v7",
-            _ => op.Register.ToString().ToLowerInvariant(),
-        };
-
-        return baseName;
+        return NamingConventions.GetVariableName(op);
     }
 
     private string FormatStackVar(int offset, int ssaVersion)
     {
-        string name;
-        if (offset < 0)
-            name = $"var_{-offset:X}";
-        else if (offset >= 0 && offset < 0x28)
-            name = $"spill_{offset:X}";
-        else
-            name = $"arg_{offset:X}";
-
-        return name;
+        return NamingConventions.GetStackVariableName(offset);
     }
 
     private string FormatConstant(long value, byte bitSize)
@@ -882,15 +843,15 @@ public sealed class PseudocodeEmitter
         {
             if (condInstr.Opcode == IrOpcode.Cmp && condInstr.Sources.Length >= 2)
             {
-                string left = FormatOperand(condInstr.Sources[0]);
-                string right = FormatOperand(condInstr.Sources[1]);
+                string left = FormatOperand(condInstr.Sources[0], out _);
+                string right = FormatOperand(condInstr.Sources[1], out _);
                 string normalOp = FormatConditionOperator(cond, false);
                 return $"{left} {normalOp} {right}";
             }
             else if (condInstr.Opcode == IrOpcode.Test && condInstr.Sources.Length >= 2)
             {
-                string left = FormatOperand(condInstr.Sources[0]);
-                string right = FormatOperand(condInstr.Sources[1]);
+                string left = FormatOperand(condInstr.Sources[0], out _);
+                string right = FormatOperand(condInstr.Sources[1], out _);
                 string op = cond switch { IrCondition.Equal => "== 0", IrCondition.NotEqual => "!= 0", IrCondition.Sign => "< 0", IrCondition.NotSign => ">= 0", _ => FormatConditionCode(cond) + " 0" };
                 if (left == right)
                     return $"{left} {op}";
@@ -898,7 +859,7 @@ public sealed class PseudocodeEmitter
             }
             else if (condInstr.DefinesDest)
             {
-                string dst = FormatOperand(condInstr.Destination);
+                string dst = FormatOperand(condInstr.Destination, out _);
                 string op = cond switch { 
                     IrCondition.Equal => "== 0", IrCondition.NotEqual => "!= 0", 
                     IrCondition.SignedLess => "< 0", IrCondition.SignedLessEq => "<= 0", 
@@ -1066,8 +1027,18 @@ public sealed class PseudocodeEmitter
         };
     }
 
-    private string ApplyRename(string name) =>
-        _userRenames.TryGetValue(name, out var renamed) ? renamed : name;
+    private string GetRenamed(string name, out bool isAi)
+    {
+        if (_userRenames.TryGetValue(name, out var renamed))
+        {
+            isAi = renamed.IsAiGenerated;
+            return isAi ? renamed.Name + " /* AI */" : renamed.Name;
+        }
+        isAi = false;
+        return name;
+    }
+
+    private string ApplyRename(string name) => GetRenamed(name, out _);
 
     private string GetIndent() => new string(' ', _indentLevel * 4);
 
@@ -1097,12 +1068,12 @@ public sealed class PseudocodeEmitter
         var spans = new List<PseudocodeSpan>();
         
         var regex = new System.Text.RegularExpressions.Regex(
-            @"(?<String>""[^""]*"")|(?<Comment>//.*)|(?<Number>\b0x[0-9a-fA-F]+\b|\b\d+\b)|(?<Keyword>\b(if|else|while|do|for|switch|case|default|break|continue|return|goto|alloca|sizeof)\b)|(?<Type>\b(int8_t|uint8_t|int16_t|uint16_t|int32_t|uint32_t|int64_t|uint64_t|float|double|bool|void|int|unsigned|struct)\b)|(?<Method>\b[a-zA-Z_]\w*(?=\s*\())|(?<Var>\b[a-zA-Z_]\w*\b)|(?<Punct>[{}()\[\].,;])|(?<Op>[+\-*/%&|^~<>=!?:]+)"
+            @"(?<String>""[^""]*"")|(?<AiComment>/\*\s*AI\s*\*/)|(?<Comment>//.*)|(?<Number>\b0x[0-9a-fA-F]+\b|\b\d+\b)|(?<Keyword>\b(if|else|while|do|for|switch|case|default|break|continue|return|goto|alloca|sizeof)\b)|(?<Type>\b(int8_t|uint8_t|int16_t|uint16_t|int32_t|uint32_t|int64_t|uint64_t|float|double|bool|void|int|unsigned|struct)\b)|(?<Method>\b[a-zA-Z_]\w*(?=\s*\())|(?<Var>\b[a-zA-Z_]\w*\b)|(?<Punct>[{}()\[\].,;])|(?<Op>[+\-*/%&|^~<>=!?:]+)"
         );
 
         foreach (System.Text.RegularExpressions.Match m in regex.Matches(text))
         {
-            if (m.Groups["Comment"].Success)
+            if (m.Groups["Comment"].Success || m.Groups["AiComment"].Success)
             {
                 spans.Add(new PseudocodeSpan(offset + m.Index, m.Length, PseudocodeSyntax.Comment));
             }
@@ -1131,6 +1102,8 @@ public sealed class PseudocodeEmitter
                 string val = m.Groups["Var"].Value;
                 if (val.StartsWith("loc_") || val.StartsWith("block_") || val.StartsWith("g_0x"))
                     spans.Add(new PseudocodeSpan(offset + m.Index, m.Length, PseudocodeSyntax.Address));
+                else if (_aiNames.Contains(val))
+                    spans.Add(new PseudocodeSpan(offset + m.Index, m.Length, PseudocodeSyntax.VariableAi));
                 else
                     spans.Add(new PseudocodeSpan(offset + m.Index, m.Length, PseudocodeSyntax.Variable));
             }

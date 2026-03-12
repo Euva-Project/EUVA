@@ -41,4 +41,5 @@ public enum PseudocodeSyntax : byte
     Punctuation = 8,    
     Comment = 9,        
     Address = 10,       
+    VariableAi = 11,    
 }

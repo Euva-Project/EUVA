@@ -10,6 +10,7 @@ using Microsoft.Msagl.Core.Geometry.Curves;
 using Microsoft.Msagl.Core.Layout;
 using Microsoft.Msagl.Layout.Layered;
 using Point = Microsoft.Msagl.Core.Geometry.Point;
+using EUVA.Core.Disassembly.Analysis;
 
 namespace EUVA.Core.Disassembly;
 
@@ -46,7 +47,7 @@ public struct LayoutEdge
 public sealed class DecompilerEngine
 {
     private readonly CfgScanner _scanner = new();
-    public Dictionary<string, string> GlobalRenames { get; } = new();
+    public Dictionary<string, VariableSymbol> GlobalRenames { get; } = new();
     public Dictionary<string, HashSet<ulong>> GlobalStructs { get; } = new();
 
     

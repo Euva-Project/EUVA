@@ -22,6 +22,21 @@ public sealed class EuvaSettings
     [JsonPropertyName("lastThemePath")]
     public string LastThemePath { get; set; } = string.Empty;
 
+    [JsonPropertyName("aiProvider")]
+    public string AiProvider { get; set; } = "Custom";
+
+    [JsonPropertyName("aiApiKeyEncrypted")]
+    public string AiApiKeyEncrypted { get; set; } = string.Empty;
+
+    [JsonPropertyName("aiBaseUrl")]
+    public string AiBaseUrl { get; set; } = "https://api.openai.com/v1";
+
+    [JsonPropertyName("aiModelName")]
+    public string AiModelName { get; set; } = "gpt-4o";
+
+    [JsonPropertyName("aiCustomPrompt")]
+    public string AiCustomPrompt { get; set; } = "Analyze this decompiled C code. Identify the roles of generic variables (v1, a2) and struct fields (field_1). Return ONLY a mapping of old names to new names. Do not use JSON, markdown, or explanations. Return strictly in this format: old_name=new_name. One per line.";
+
 
 
     private static string SettingsFilePath =>
