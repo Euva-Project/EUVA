@@ -44,6 +44,7 @@ By using EUVA, you acknowledge that you are solely responsible for your actions,
 - **Disassembler** An iced-based disassembler will help in analyzing binary files and will present the binary file as readable logic.
 - **Decompiler** Decompile x64, x86 binaries and get pseudocode in C/C++ format
 - **Scripting Decompiler** A C# scripting layer that allows you to write custom decompiler scripts and custom decompilation methods.
+- **AI Agents Decompiler** Bring your own API key Cloud or Local via Ollama to instantly restore human-readable variable names and code semantics without UI freezes.
 
 ---
 
