@@ -64,7 +64,7 @@ To find out how a particular subsystem works, you can read the relevant document
 - [Byte minimap](docs/byteminimap.md)
 - [Disassembler](docs/Disassembler.md)
 - [Decompiler](docs/Decompiler.md)
-- [Scripting Decompiler](docs/Decompiler#18-glass-engine-c-scripting-integration)
+- [Scripting Decompiler](docs/Decompiler#19-glass-engine-c-scripting-integration)
 ---
 
 ## Quick Start
