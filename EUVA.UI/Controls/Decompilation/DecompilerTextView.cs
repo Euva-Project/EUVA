@@ -520,6 +520,21 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (e.Key == Key.A && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            if (_flatLines.Length > 0)
+            {
+                _selStart = (0, 0);
+                var lastLineIdx = _flatLines.Length - 1;
+                var lastLineText = _flatLines[lastLineIdx].Text ?? "";
+                _selEnd = (lastLineIdx, lastLineText.Length);
+                _cursorLine = lastLineIdx;
+                Redraw();
+            }
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
         {
             CopySelectionToClipboard();
