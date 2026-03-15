@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./screen/final_logo.png" alt="EUVA Logo">
+  <img src="./screen/final_logo.png" width="578" alt="EUVA Logo">
 </p>
 
 ## 🌌 EUVA IDE
