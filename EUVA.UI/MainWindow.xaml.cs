@@ -1475,4 +1475,34 @@ catch (Exception iatEx)
             finally { _isProcessingScript = false; }
         });
     }
+
+    public void ToggleRightPanel(bool visible)
+    {
+        if (MainEditorGrid == null || MainEditorGrid.ColumnDefinitions.Count < 5) return;
+
+        if (visible)
+        {
+            MainEditorGrid.ColumnDefinitions[3].Width = new GridLength(1);
+            MainEditorGrid.ColumnDefinitions[4].Width = new GridLength(310);
+            MainEditorGrid.ColumnDefinitions[4].MinWidth = 160;
+            
+            foreach (UIElement child in MainEditorGrid.Children)
+            {
+                int col = Grid.GetColumn(child);
+                if (col == 3 || col == 4) child.Visibility = Visibility.Visible;
+            }
+        }
+        else
+        {
+            MainEditorGrid.ColumnDefinitions[3].Width = new GridLength(0);
+            MainEditorGrid.ColumnDefinitions[4].Width = new GridLength(0);
+            MainEditorGrid.ColumnDefinitions[4].MinWidth = 0;
+            
+            foreach (UIElement child in MainEditorGrid.Children)
+            {
+                int col = Grid.GetColumn(child);
+                if (col == 3 || col == 4) child.Visibility = Visibility.Collapsed;
+            }
+        }
+    }
 }

@@ -322,6 +322,17 @@ public partial class MainWindow
             Padding = new Thickness(0)
         };
 
+        _centerTabControl.SelectionChanged += (s, e) =>
+        {
+            if (e.Source != _centerTabControl) return;
+            if (_centerTabControl.SelectedItem is TabItem ti)
+            {
+                string header = ti.Header?.ToString() ?? "";
+                bool isSpecial = header.Contains("Decompiler") || header.Contains("Disasm");
+                ToggleRightPanel(!isSpecial);
+            }
+        };
+
         var hexTab = new TabItem
         {
             Header = "Hex Editor",
