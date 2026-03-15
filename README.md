@@ -1,21 +1,35 @@
-# EUVA — EngineUnpacker Visual Analyzer
+<p align="center">
+  <img src="./screen/final_logo.png" alt="EUVA Logo">
+</p>
 
-> **Developing Byte and Signature Research Program.**  
-> Zero bloat. Zero vendor lock-in. Maximum signal.
+## 🌌 EUVA IDE
 
+<p align="center">
+<img src="https://img.shields.io/badge/Language-.NET%208.0-89b4fa?style=for-the-badge&labelColor=313244">
+  <img src="https://img.shields.io/badge/UI-WPF-f5c2e7?style=for-the-badge&labelColor=313244">
+  <img src="https://img.shields.io/badge/License-GPL--3.0-a6e3a1?style=for-the-badge&labelColor=313244">
+  <img src="https://img.shields.io/badge/AI-Empowered-cba6f7?style=for-the-badge&labelColor=313244">
+</p>
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) ![Static Analysis](https://img.shields.io/badge/Analysis-Static-4B0082?style=plastic&logo=linux-foundation&logoColor=white) ![Hex](https://img.shields.io/badge/Data-Hex_Manipulation-696969?style=plastic&logo=data-studio&logoColor=white) ![Low Latency](https://img.shields.io/badge/Perf-Low_Latency-FFD700?style=plastic&logo=speedtest&logoColor=black)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20x64-informational)](https://github.com/euva) [![Framework](https://img.shields.io/badge/.NET-8.0--windows-purple)](https://dotnet.microsoft.com) [![Language](https://img.shields.io/badge/Language-C%23%2012.0-brightgreen)](https://learn.microsoft.com/en-us/dotnet/csharp/) ![WPF](https://img.shields.io/badge/UI-WPF-blue?style=plastic&logo=windows&logoColor=white) ![Memory](https://img.shields.io/badge/Memory-Mapped%20Files-lightgrey?style=plastic&logo=speedtest&logoColor=white)
+<p align="center">
+  <strong>The next generation of binary reverse engineering. Slice through protection, recover semantics, and reclaim your code.</strong>
+  <strong>Zero bloat. Zero vendor lock-in. Maximum signal.</strong>
+</p>
 
 ---
 
-## Introduction
 
-Most likely, this program answers the question: *what if hex editors were written from scratch in 2026?*
+## 🔍 About EUVA
 
-EUVA is a **WPF/C# native application** that operates directly on the binary layer. No heavy runtime frameworks. No scripting interpreters bolted on as afterthoughts. No 200-MB installs for features you'll never use.
+
+
+EUVA is not just a hex editor and decompiler – it's a comprehensive **Static Analysis Environment** designed for the modern reverse engineer. Born from the need for high-performance, scriptable, and intelligent binary analysis, EUVA combines traditional graph-theory algorithms with cutting-edge AI-assisted semantic recovery.
+
+> [!IMPORTANT]
+> EUVA is designed with a "Local First" philosophy. Every advanced feature, including the AI agent, is entirely optional and can be configured to run through local providers like Ollama.
 
 ---
+
 
 ## Disclaimer 
 
@@ -27,7 +41,79 @@ By using EUVA, you acknowledge that you are solely responsible for your actions,
 
 ---
 
-## Key Features
+## ✨ Core Arsenal
+
+### 1. 🧬 High-Performance Hex Editor
+Experience binary data at its most primal level with a hardware-accelerated rendering engine. EUVA bypasses the standard WPF rendering pipeline to provide maximum performance.
+- **Hardware Acceleration**: Built on a custom `WriteableBitmap` engine that performs manual pixel-array manipulation before a single-step blit to video memory.
+- **Zero-Latency Scrolling**: Scales effortlessly to multi-gigabyte binaries via **Memory-Mapped Files (MMF)**, ensuring raw data is never loaded fully into the heap.
+- **PE Semantic Tree**: Automatically decomposes raw bytes into a navigable hierarchy, mapping specific fields to virtual addresses for instant lookup.
+- **Inline x86 Assembler**: An engine for replacing bytes and writing scripts for automatic changes
+- **YARA-X Integration**: Industrial-grade signature matching with windowed processing (16MB chunks) and deduplicated rule-name referencing for minimal RAM impact.
+- **Live Script Watcher**: Real-time patching via `.euv` scripts with a specialized cooldown mechanism to prevent file-lock conflicts during development.
+- **GlyphCache Subsystem**: Pre-rasterizes UI symbols into high-speed memory buffers, eliminating font-rendering overhead during rapid navigation.
+- **Byte Minimap**: A high-level visual overview of the binary's internal structure with **Entropy Analysis** for identifying encrypted or compressed regions.
+- **Dirty Tracking**: Optimized for security researchers with lock-free snapshot isolation for real-time change visualization.
+
+<p align="center">
+  <img src="./screen/screen_003.png" alt="EUVA Hex Editor Showcase">
+  <br>
+  <em>Buttery smooth scrolling and instant data lookup at native DPI.</em>
+</p>
+
+### 2. ⚡ The Decompiler Engine
+The heart of EUVA. A multi-stage, industrial-grade pipeline that elevates raw machine code into human-readable C/C++ logic.
+- **Instruction Lifting**: Normalizes complex hardware ISAs into a clean, hardware-agnostic Intermediate Representation (IR).
+- **Static Single Assignment (SSA)**: Implements precise data-flow traversal using versioned variables and Phi ($\phi$) node unification.
+- **Advanced Optimization Passes**: Includes Copy Propagation, Dead Store Elimination (DSE), and recursive AST folding for zero-entropy pseudocode.
+- **Structure Discovery**: Sophisticated domination analysis to recover idiomatic `if/else`, `while`, and `for` loop patterns.
+- **Constraint-Based Type Inference**: A bidirectional propagation engine that reconstructs complex structs and pointers from memory-access footprints.
+- **Glass Engine C# Scripting**: Total programmatic control over the decompilation pipeline via runtime-compiled C# scripts for handling obfuscation.
+
+<p align="center">
+  <img src="./screen/screen_001.png" alt="EUVA Decompiler Engine Showcase">
+</p>
+
+### 3. 🔍 Advanced Disassembly
+High-performance logical listing for precise low-level analysis.
+- **Zero-Allocation Pipeline**: Leverages the Iced library with custom memory reuse to eliminate Garbage Collector pressure during million-instruction scrolls.
+- **Token-Based Rendering**: Manual character-by-character blitting into a backbuffer with themed color mapping for every instruction component.
+- **Synchronization Heuristics**: Advanced entry-point detection algorithms to find meaningful code boundaries in arbitrary byte streams.
+- **Dry-Decoding Engine**: Fast instruction counting and skipping without full text translation for ultra-responsive navigation.
+
+### 🧩 Extension & Analysis (Other)
+EUVA is built to be "omnivorous" to new analysis methods.
+- **Plugin-Based Detectors**: A scalable architecture for detecting packers and protectors (Themida, WinLicense, UPX) via distributed priority-based plugins.
+- **Multi-Factor Confidence**: Scoring system that combines entropy analysis, section name anomalies, and signature matches for high-accuracy detection.
+- **Asynchronous Management**: Non-blocking detector execution to keep the UI perfectly responsive during massive file scans.
+
+### 4. 🤖 AI-Agent Semantic Refactoring
+Bridge the gap between **Logic** and **Semantics**. Our experimental AI layer helps you identify variable names and function roles that are traditionally lost in compilation.
+
+> [!NOTE]
+> **Your Choice, Your Control**: The AI Agent is a "Bring Your Own Key" system. It supports Cloud LLMs (OpenAI, Claude, Groq) and Local LLMs (Ollama, LocalAI). **Privacy is paramount.**
+
+
+| 🔴 Before AI (Raw Decompilation) | 🟢 After AI (Semantic Refactor) |
+| :--- | :--- |
+| `v3 = (uint64_t)(v1 + 8);` | `current_ptr /* AI */ = (uint64_t)(v1 + 8);` |
+| `v4 = v2->field_FFFFFFFFFFFFFFFF;` | `i /* AI */ = v2->field_FFFFFFFFFFFFFFFF;` |
+| `v3->field_2 = (*v3 & 7);` | `current_ptr /* AI */->field_2 = (*current_ptr /* AI */ & 7);` |
+| `v3->field_1 = (v4 >> 4);` | `current_ptr /* AI */->field_1 = (i /* AI */ >> 4);` |
+| `rax = (uint8_t)(v4 & 15);` | `rax = (uint8_t)(i /* AI */ & 15);` |
+| `*v3 = rax;` | `*current_ptr /* AI */ = rax;` |
+| `...` | `...` |
+
+
+---
+
+<p align="center">
+  <img src="./screen/screen_002.png" alt="EUVA Decompiler Engine Placeholder">
+</p>
+
+---
+
+## 🛠 Features Spotlight
 
 - **Memory-Mapped File engine** that scales to arbitrarily large binaries with zero heap pressure
 - **WriteableBitmap renderer** that bypasses the WPF render pipeline entirely pixel-perfect output at native DPI
@@ -46,42 +132,12 @@ By using EUVA, you acknowledge that you are solely responsible for your actions,
 - **Scripting Decompiler** A C# scripting layer that allows you to write custom decompiler scripts and custom decompilation methods.
 - **AI Agents Decompiler** Bring your own API key Cloud or Local via Ollama to instantly restore human-readable variable names and code semantics without UI freezes.
 
+
 ---
 
-## Implementation
-To find out how a particular subsystem works, you can read the relevant documents.
+## 🚀 Quick Start
 
-- [Memory-Mapped-File](docs/MemoryMappedFile.md)
-- [WriteableBitmap Render](docs/WriteableBitmapRenderer.md)
-- [GlyphCache](docs/GlyphCache.md)
-- [Dirty-Tracking-System](docs/DirtyTrackingAndSnapshot.md)
-- [Transactional-Undo-system](docs/UndoSystem.md)
-- [Structured-PE-decomposition-layer](docs/PESemanticTree.md)
-- [built-in-x86-assembler](docs/Asmlogic.md)
-- [scriptable-patching-DSL](docs/EuvFIleWatch.md)
-- [plugin-extensible-detector-pipeline](docs/Detectors.md)
-- [fully-themeable-rendering-layer](docs/Themes.md)
-- [Addition-of-the-Yara-X-rules-engine](docs/EuvaUseYaraX.md)
-- [Byte-minimap](docs/byteminimap.md)
-- [Disassembler](docs/Disassembler.md)
-- [Decompiler](docs/Decompiler.md)
-- [Scripting-Decompiler](docs/Decompiler.md#19-glass-engine-c-scripting-integration)
-- [AI-Agents-Decompiler](docs/Decompiler.md#20-ai-assisted-semantic-integration)
----
-
-## Quick Start
-
-**Requirements**
-
-- .NET 8.0 SDK 
-- С# ^12.0 compiler
-- AsmResolver >= 5.5.1
-- DefenceTechSecurity.Yarax Release 1.0.1-release.yrx1.12.0
-- Iced Disassembler >= 1.21.0
-- Microsoft Msagl >= 1.1.6
-- Microsoft.CodeAnalysis.CSharp (Roslyn) >= 5.3.0
-
-
+### Installation
 ```
 git clone https://github.com/pumpkin-bit/EUVA.git
 cd EUVA/EUVA.UI
@@ -90,35 +146,108 @@ dotnet build -c Release
 dotnet run // optional
 ```
 
-**Native AOT version**
-
 > [!WARNING]
-> The tool doesn't deny support for Native AOT, but for user convenience, it includes a Roslyn JIT compiler for writing custom decompilation scripts. However, even if Roslyn doesn't support Native AOT, you can still compile the project into a native version.
+> When using internal scripts (Glass Engine), ensure the `Scripts/` folder is populated with valid `.cs` implementations to avoid pipeline startup latency.
 
 ---
 
-**Hotkeys Default**
+## 📚 Documentation & Depth
 
+Dive deeper into the theory and mechanics:
 
+- 📖 [Memory-Mapped-File](docs/MemoryMappedFile.md)
+- 📖 [WriteableBitmap Render](docs/WriteableBitmapRenderer.md)
+- 📖 [GlyphCache](docs/GlyphCache.md)
+- 📖 [Dirty-Tracking-System](docs/DirtyTrackingAndSnapshot.md)
+- 📖 [Transactional-Undo-system](docs/UndoSystem.md)
+- 📖 [Structured-PE-decomposition-layer](docs/PESemanticTree.md)
+- 📖 [built-in-x86-assembler](docs/Asmlogic.md)
+- 📖 [scriptable-patching-DSL](docs/EuvFIleWatch.md)
+- 📖 [plugin-extensible-detector-pipeline](docs/Detectors.md)
+- 📖 [fully-themeable-rendering-layer](docs/Themes.md)
+- 📖 [Addition-of-the-Yara-X-rules-engine](docs/EuvaUseYaraX.md)
+- 📖 [Byte-minimap](docs/byteminimap.md)
+- 📖 [Disassembler](docs/Disassembler.md)
+- 📖 [Decompiler](docs/Decompiler.md)
+- 📖 [Scripting-Decompiler](docs/Decompiler.md#19-glass-engine-c-scripting-integration)
+- 📖 [AI-Agents-Decompiler](docs/Decompiler.md#20-ai-assisted-semantic-integration)
 
-- `NavInspector` - `Alt+1`        Switch to Inspector tab 
-- `NavSearch` - `Alt+2`           Switch to Search tab 
-- `NavDetections` - `Alt+3`       Switch to Detections tab 
-- `NavProperties` - `Alt+4`       Switch to Properties tab
+---
+## ⌨️ Default Hotkey
 
-- `CopyHex` - `Ctrl+C`            Copy selection as hex string 
-- `CopyCArray` - `Ctrl+Shift+C`   Copy selection as C byte array 
-- `CopyPlainText` - `Ctrl+Alt+C`  Copy selection as Plain text 
-
-- `Undo` - `Ctrl+Z`               Undo last byte write 
-- `FullUndo` - `Ctrl+Shift+Z`     Revert entire last script run 
-- `View byte` - `F3`              View the latest bytes changes
-- `View Yara Matches` - `Shift+F3` View matches found by Yara
-- `View Disassembler` - `Ctrl+D` View Disassembler
-- `View Decompiler` - `Ctrl+E` View Decompiler, use `F5` to switch between graphics mode and text mode
-- `Highlight code` - `Ctrl+A` Selecting code in text form in a decompiler
+| Command | Shortcut | Description |
+| :--- | :--- | :--- |
+| `NavInspector` | `Alt+1` | Switch to Inspector tab |
+| `NavSearch` | `Alt+2` | Switch to Search tab |
+| `NavDetections` | `Alt+3` | Switch to Detections tab |
+| `NavProperties` | `Alt+4` | Switch to Properties tab |
+| `CopyHex` | `Ctrl+C` | Copy selection as hex string |
+| `CopyCArray` | `Ctrl+Shift+C` | Copy selection as C byte array |
+| `CopyPlainText` | `Ctrl+Alt+C` | Copy selection as Plain text |
+| `Undo` | `Ctrl+Z` | Undo last byte write |
+| `FullUndo` | `Ctrl+Shift+Z` | Revert entire last script run |
+| `View byte` | `F3` | View the latest bytes changes |
+| `View Yara Matches` | `Shift+F3` | View matches found by Yara |
+| `View Disassembler` | `Ctrl+D` | View Disassembler |
+| `View Decompiler` | `Ctrl+E` | View Decompiler, use `F5` to switch between graphics mode and text mode |
+| `Highlight code` | `Ctrl+A` | Selecting code in text form in a decompiler |
 
 **You can reassign hotkeys by loading (via the settings in the program menu) and editing the .htk file.**
+
+---
+
+## ❓ FAQ
+
+**Q: Why use EUVA's built-in AI instead of an AI plugin for IDA Pro or Ghidra?**  
+**A:** In legacy tools, AI is often a "bolt-on" script that freezes the UI while it processes raw text and waits for a response. EUVA is a native, JIT application where AI is a first-class citizen. Our **Zero-Allocation pipeline** and direct AST-level semantic injection mean renames happen in milliseconds without a single interface stutter.
+
+**Q: Can I safely reverse malware or sensitive code without leaking it to cloud servers?**  
+**A:** Absolutely. EUVA follows a **Local First** philosophy. You can configure it to use **Ollama** or any local OpenAI-compatible provider. Your code stays on your machine, and your privacy is preserved.
+
+**Q: LLMs often hallucinate. How do I know the AI didn't invent logic or break my decompiler output?**  
+**A:** EUVA and the LLM work in a "Trust but Verify" loop. The AI is only allowed to propose renames for existing variables detected by our AST engine. Every change is clearly marked with `/* AI */` comments, and you can instantly roll back any function to its raw state using the **Reject AI** button.
+
+**Q: Can I force the AI to use specific naming conventions (e.g., Linux Kernel style or custom crypto terminology)?**  
+**A:** Yes. The **AI Settings** window allows you to customize the **System Prompt**. You can define exactly how the AI should perceive the code and which naming standards it should prioritize.
+
+**Q: Why switch to EUVA when giants like IDA Pro, Ghidra, or ImHex have existed for decades?**  
+**A:** EUVA doesn't carry of legacy code. 
+- **IDA/Ghidra**: Monolithic environments where modern features like LLM integration feel sluggish due to complex Python/Java bridges.
+- **ImHex**: An incredible hex editor and pattern parser, but not a full-scale reverse engineering environment with a specialized decompiler pipeline.
+- **EUVA**: Specifically engineered for the era of AI and high-performance data-flow analysis. It delivers industrial-grade power with the agility of a modern C# native app.
+
+---
+
+## 🙏 Acknowledgments
+
+
+* **[Imhex](https://github.com/werwolv/imhex)** for the UI/UX inspiration.
+* **[AsmResolver](https://github.com/Washi1337/AsmResolver)** for parsing binary files
+* **[Iced](https://github.com/icedland/iced)** for disassembling and decompiling
+* **[YARA-x](https://libraries.io/nuget/DefenceTechSecurity.Yarax)** for integration with thousands of signatures
+* **[Roslyn](https://github.com/dotnet/roslyn)** for the script engine in the decompiler
+* **[Microsoft.Msagl](https://github.com/microsoft/automatic-graph-layout)** construction of graphs of decompiled code
+* **[Catppuccin](https://catppuccin.com/)** for interface theme
+
+---
+## 🤝 Contributing & Community
+
+We welcome the street-smart netrunners and corporate-grad researchers alike.
+
+We welcome street-smart netrunners and corporate-grad researchers alike. 
+
+### Quick Start
+1. **Read first:** Please read our [CODE_OF_CONDUCT](CODE_OF_CONDUCT.md) before participating.
+2. **Found a bug?** Open an [Issue](https://github.com/pumpkin-bit/EUVA/issues) with a detailed description and, if possible, a sample binary.
+3. **Want to code?** Check out the [CONTRIBUTING](CONTRIBUTING.md) guide for build instructions and PR templates.
+
+**PRs Welcome:** Found a bug or optimized a pipeline stage? Submit a PR! 🚀
+
+---
+
+## P.S
+
+I will also be grateful for the stars - the stars are the future of the project ⭐.
 
 ---
 
@@ -156,4 +285,12 @@ Use responsibly and in accordance with applicable laws.
 
 ---
 
-*EUVA — built for researchers who read hex for fun.*
+<p align="center">
+  <strong>EUVA – built for researchers who read hex for fun.</strong>
+</p>
+
+<p align="center">
+  Built with ❤️ for the Reverse Engineering Community | © 2026 EUVA Project
+</p>
+
+
