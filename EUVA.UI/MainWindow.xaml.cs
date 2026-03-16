@@ -816,366 +816,386 @@ catch (Exception iatEx)
         if (HexView.FileLength == 0) { Log("[Engine] FATAL: No file loaded!", Brushes.Red); return; }
 
         SafeLog($"[Engine] Starting script: {Path.GetFileName(scriptPath)}", Brushes.White);
-        int stepsInThisRun = 0;
         string[] lines;
         try { lines = await File.ReadAllLinesAsync(scriptPath); }
         catch (Exception ex) { Log($"[Engine] IO Error: {ex.Message}", Brushes.Red); return; }
-
-        int totalChanges = 0;
-        var globalScope = new Dictionary<string, long>();
-
-
-
-        long fileLength = 0;
-        await Dispatcher.InvokeAsync(() => fileLength = HexView.FileLength);
 
         await Task.Run(() =>
         {
             try
             {
-                long lastAddress = 0;
-                string currentModifier = "default";
-                MethodContainer? currentMethod = null;
-                bool inScriptBody = false, isTerminated = false;
-
-                for (int i = 0; i < lines.Length; i++)
+                var interpreter = new DslInterpreter(this, lines);
+                interpreter.Execute();
+                
+                if (interpreter.ChangesCount > 0)
                 {
-                    var line = _whitespaceRegex
-                        .Replace(lines[i].Split('#')[0].Split("//")[0], " ").Trim();
-                    if (string.IsNullOrEmpty(line)) continue;
-
-                    if (line.ToLower() == "start;") { inScriptBody = true; continue; }
-                    if (!inScriptBody) continue;
-                    if (line.ToLower() == "end;") { isTerminated = true; break; }
-
-                    if (line.EndsWith(":"))
-                    {
-                        var mod = line.Replace(":", "").ToLower();
-                        if (mod == "public" || mod == "private")
-                        { currentModifier = mod; continue; }
-                    }
-
-                    if (line.StartsWith("_createMethod"))
-                    {
-                        var mName = Regex.Match(line, @"\((.*?)\)").Groups[1].Value;
-                        currentMethod = new MethodContainer { Name = mName, Access = currentModifier };
-                        SafeLog($"[Engine] Parsing method: {mName} ({currentModifier})", Brushes.Gray);
-                        continue;
-                    }
-
-                    if (currentMethod != null)
-                    {
-                        if (line == "{") continue;
-                        if (line == "}")
-                        {
-                            var localScope = new Dictionary<string, long>();
-                            SafeLog($"[Engine] Executing method: {currentMethod.Name}",
-                                Brushes.CornflowerBlue);
-
-                            foreach (var cmd in currentMethod.Body)
-                                ExecuteCommand(cmd, localScope, globalScope,
-                                    ref lastAddress, ref totalChanges,
-                                    ref stepsInThisRun, fileLength);
-
-                            if (currentMethod.Access == "public")
-                            {
-                                foreach (var exportName in currentMethod.Clinks.Keys)
-                                {
-                                    if (localScope.TryGetValue(exportName, out long addr))
-                                    {
-                                        globalScope[$"{currentMethod.Name}.{exportName}"] = addr;
-                                        SafeLog($"[Link] {currentMethod.Name}.{exportName} -> 0x{addr:X}",
-                                            Brushes.Cyan);
-                                    }
-                                }
-                            }
-                            currentMethod = null;
-                            continue;
-                        }
-
-                        if (line.ToLower().StartsWith("clink:") || line.Contains("["))
-                        {
-                            int j = i; string fullClink = "";
-                            while (j < lines.Length && !lines[j].Contains("]"))
-                                fullClink += lines[j++];
-                            if (j < lines.Length) fullClink += lines[j];
-                            var match = _clinkBracketRegex.Match(fullClink);
-                            if (match.Success)
-                            {
-                                var names = match.Groups[1].Value
-                                    .Split(new[] { ',', '\r', '\n' },
-                                        StringSplitOptions.RemoveEmptyEntries)
-                                    .Select(s => s.Trim());
-                                foreach (var name in names) currentMethod.Clinks[name] = 0;
-                            }
-                            i = j; continue;
-                        }
-                        currentMethod.Body.Add(line);
-                    }
+                    lock (_undoStack) { _transactionSteps.Push(interpreter.ChangesCount); }
+                    SafeLog($"[Engine] Success. {interpreter.ChangesCount} operations committed.", Brushes.SpringGreen);
                 }
-
-                if (stepsInThisRun > 0)
-                {
-                    lock (_undoStack) { _transactionSteps.Push(stepsInThisRun); }
-                    SafeLog($"[Engine] Success. {stepsInThisRun} ops committed.", Brushes.SpringGreen);
-                }
-                if (!isTerminated) throw new Exception("Script reached EOF without 'end;'");
             }
-            catch (Exception ex) { SafeLog($"[fatal error] {ex.Message}", Brushes.OrangeRed); }
+            catch (Exception ex)
+            {
+                SafeLog($"[fatal error] {ex.Message}", Brushes.OrangeRed);
+            }
         });
     }
-    private void ExecuteCommand(string line,
-        Dictionary<string, long> localScope, Dictionary<string, long> globalScope,
-        ref long lastAddress, ref int totalChanges, ref int stepsInThisRun,
-        long currentFileLength)
+
+    private class DslInterpreter
     {
-        string cmd = line.ToLower();
-        try
+        private readonly MainWindow _parent;
+        private readonly string[] _lines;
+        private readonly Dictionary<string, long> _variables = new();
+        private int _currentLine = 0;
+        public int ChangesCount { get; private set; } = 0;
+
+        public DslInterpreter(MainWindow parent, string[] lines)
         {
-            if (cmd.StartsWith("find"))
-            {
-                var fp = ExtractInsideBrackets(line).Split('=');
-                if (fp.Length < 2) return;
-                string varName = fp[0].Trim();
-                string sigPat = fp[1].Trim();
-                long rawAddr = FindSignature(sigPat);
-
-                if (rawAddr == -1)
-                {
-                    localScope[varName] = long.MinValue;
-                    SafeLogThreadSafe(
-                        $"[Search] Signature NOT found: '{sigPat}'. " +
-                        $"Variable '{varName}' marked INVALID — all dependent commands will be skipped.",
-                        Brushes.Orange);
-                }
-                else
-                {
-                    localScope[varName] = rawAddr;
-                    SafeLogThreadSafe($"[Search] ✓ {varName} = 0x{rawAddr:X8}", Brushes.Violet);
-                }
-            }
-            else if (cmd.StartsWith("set"))
-            {
-                var sp = ExtractInsideBrackets(line).Split('=');
-                if (sp.Length < 2) return;
-                string varName = sp[0].Trim();
-                long val = ParseMath(sp[1], lastAddress, localScope, globalScope);
-                localScope[varName] = val;
-
-                if (val == long.MinValue)
-                    SafeLogThreadSafe(
-                        $"[Set] Variable '{varName}' set to INVALID " +
-                        $"(expression depends on a missing signature).",
-                        Brushes.Orange);
-            }
-            else
-            {
-                string addrPart = line.Contains(':')
-                    ? line.Split(':')[0]
-                    : ExtractInsideBrackets(line).Split(':')[0];
-
-                long addr = ParseMath(addrPart, lastAddress, localScope, globalScope);
-                if (addr == long.MinValue)
-                {
-                    SafeLogThreadSafe(
-                        $"[Skip] Command '{line.Split(':')[0].Trim()}' skipped: " +
-                        $"address expression depends on an INVALID variable (missing signature).",
-                        Brushes.Yellow);
-                    return;
-                }
-
-                if (addr < 0 || addr >= currentFileLength)
-                {
-                    SafeLogThreadSafe($"[Skip] Address 0x{addr:X8} out of range " +
-                        $"(file size: 0x{currentFileLength:X8}).", Brushes.Yellow);
-                    return;
-                }
-
-                if (cmd.StartsWith("check"))
-                {
-                    byte[] expected = ParseBytes(line.Split(':')[1]);
-                    for (int i = 0; i < expected.Length; i++)
-                        if (HexView.ReadByte(addr + i) != expected[i])
-                        {
-                            SafeLogThreadSafe($"[Check Fail] 0x{addr:X} mismatch.", Brushes.OrangeRed);
-                            return;
-                        }
-                    return;
-                }
-
-                if (line.Contains(':'))
-                {
-                    string dataPart = line.Split(':')[1].Trim();
-                    byte[]? bytes = AsmLogic.Assemble(dataPart, addr);
-
-                    if (bytes == null && dataPart.Contains('"'))
-                    {
-                        var m = Regex.Match(dataPart, "\"(.*)\"");
-                        if (m.Success)
-                            bytes = System.Text.Encoding.ASCII.GetBytes(m.Groups[1].Value);
-                    }
-                    if (bytes == null) bytes = ParseBytes(dataPart);
-
-                    if (bytes is { Length: > 0 })
-                    {
-                        byte[] oldBytes = new byte[bytes.Length];
-                        for (int i = 0; i < bytes.Length; i++)
-                            oldBytes[i] = HexView.ReadByte(addr + i);
-
-                        SafeLogThreadSafe(
-                            $"[Patch] 0x{addr:X}: {BitConverter.ToString(oldBytes).Replace("-", " ")} -> " +
-                            $"{BitConverter.ToString(bytes).Replace("-", " ")}", Brushes.YellowGreen);
-
-                        lock (_undoStack) { _undoStack.Push((addr, oldBytes, bytes)); stepsInThisRun++; }
-
-                        var captured = bytes;
-                        Dispatcher.Invoke(() =>
-                        {
-                            for (int i = 0; i < captured.Length; i++)
-                                HexView.WriteByte(addr + i, captured[i]);
-                        });
-
-                        totalChanges += bytes.Length;
-                        lastAddress = addr + bytes.Length;
-
-                        Dispatcher.BeginInvoke(new Action(() => HexView.InvalidateVisual()),
-                            System.Windows.Threading.DispatcherPriority.Background);
-                    }
-                }
-            }
+            _parent = parent;
+            _lines = lines;
         }
-        catch (Exception ex)
+
+        public void Execute()
         {
-            SafeLogThreadSafe($"[Cmd Error] '{line}': {ex.Message}", Brushes.Red);
+            _currentLine = 0;
+            ExecuteBlock(0);
         }
-    }
-    private static long ParseMath(string expr, long lastAddr,
-        Dictionary<string, long> localScope, Dictionary<string, long> globalScope)
-    {
-        ReadOnlySpan<char> src = expr.AsSpan().Trim();
-        if (src.Length == 0 || src is "." or "()") return lastAddr;
-        char[] buf = ArrayPool<char>.Shared.Rent(src.Length * 21 + 64);
-        int outLen = 0;
-        try
+
+        private void ExecuteBlock(int minIndent)
         {
-            int i = 0;
-            while (i < src.Length)
+            while (_currentLine < _lines.Length)
             {
-                char c = src[i];
-                if (char.IsLetter(c) || c == '_')
+                string rawLine = _lines[_currentLine];
+                if (string.IsNullOrWhiteSpace(rawLine)) { _currentLine++; continue; }
+
+                int indent = GetIndent(rawLine);
+                if (indent < minIndent) return;
+
+                string line = rawLine.Trim();
+                if (line.StartsWith("#") || string.IsNullOrEmpty(line)) { _currentLine++; continue; }
+
+                int hashIdx = line.IndexOf('#');
+                if (hashIdx >= 0) line = line.Substring(0, hashIdx).Trim();
+                if (string.IsNullOrEmpty(line)) { _currentLine++; continue; }
+
+                if (line.StartsWith("if ") && line.EndsWith(":"))
                 {
-                    int start = i;
-                    while (i < src.Length &&
-                           (char.IsLetterOrDigit(src[i]) || src[i] == '_' || src[i] == '.'))
-                        i++;
-                    string token = src.Slice(start, i - start).ToString();
+                    string conditionExpr = line.Substring(3, line.Length - 4).Trim();
+                    bool condition = EvaluateExpression(conditionExpr) != 0;
+                    _currentLine++;
 
-                    long val = localScope.TryGetValue(token, out long lv) ? lv
-                             : globalScope.TryGetValue(token, out long gv) ? gv
-                             : 0L;
-                    if (val == long.MinValue) return long.MinValue;
-
-                    AppendLong(buf, ref outLen, val);
+                    if (condition)
+                    {
+                        ExecuteBlock(indent + 1);
+                        SkipOptionalElse(indent);
+                    }
+                    else
+                    {
+                        SkipBlock(indent + 1);
+                        ExecuteOptionalElse(indent);
+                    }
                     continue;
                 }
-                if (outLen < buf.Length) buf[outLen++] = c;
-                i++;
+                
+                if (line.StartsWith("else:"))
+                {
+                    _currentLine++;
+                    SkipBlock(indent + 1);
+                    continue;
+                }
+
+                ExecuteStatement(line);
+                _currentLine++;
             }
-            return EvalExpr(buf.AsSpan(0, outLen));
         }
-        catch { return long.MinValue; }
-        finally { ArrayPool<char>.Shared.Return(buf); }
-    }
-    private static void AppendLong(char[] buf, ref int len, long v)
-    {
-        if (v == 0) { if (len < buf.Length) buf[len++] = '0'; return; }
-        if (v < 0)
+
+        private void SkipOptionalElse(int indent)
         {
-            if (len < buf.Length) buf[len++] = '-';
-            if (v == long.MinValue) { AppendStr(buf, ref len, "9223372036854775808"); return; }
-            v = -v;
+            int savedLine = _currentLine;
+            while (_currentLine < _lines.Length)
+            {
+                string rawLine = _lines[_currentLine];
+                if (string.IsNullOrWhiteSpace(rawLine) || rawLine.Trim().StartsWith("#")) { _currentLine++; continue; }
+                
+                if (GetIndent(rawLine) == indent && rawLine.Trim().StartsWith("else:"))
+                {
+                    _currentLine++;
+                    SkipBlock(indent + 1);
+                    return;
+                }
+                break;
+            }
+            _currentLine = savedLine; 
         }
-        int start = len;
-        while (v > 0 && len < buf.Length) { buf[len++] = (char)('0' + v % 10); v /= 10; }
-        int end = len - 1;
-        while (start < end) { (buf[start], buf[end]) = (buf[end], buf[start]); start++; end--; }
-    }
 
-    private static void AppendStr(char[] buf, ref int len, string s)
-    {
-        foreach (char c in s) if (len < buf.Length) buf[len++] = c;
-    }
-
-    private static long EvalExpr(ReadOnlySpan<char> s) { int p = 0; return EvalAdd(s, ref p); }
-
-    private static long EvalAdd(ReadOnlySpan<char> s, ref int p)
-    {
-        long lhs = EvalMul(s, ref p); SkipWs(s, ref p);
-        while (p < s.Length && (s[p] == '+' || s[p] == '-'))
+        private void ExecuteOptionalElse(int indent)
         {
-            char op = s[p++]; SkipWs(s, ref p);
-            long rhs = EvalMul(s, ref p);
-            lhs = op == '+' ? lhs + rhs : lhs - rhs;
-            SkipWs(s, ref p);
+            while (_currentLine < _lines.Length)
+            {
+                string rawLine = _lines[_currentLine];
+                if (string.IsNullOrWhiteSpace(rawLine) || rawLine.Trim().StartsWith("#")) { _currentLine++; continue; }
+                
+                if (GetIndent(rawLine) == indent && rawLine.Trim().StartsWith("else:"))
+                {
+                    _currentLine++;
+                    ExecuteBlock(indent + 1);
+                    return;
+                }
+                break;
+            }
         }
-        return lhs;
+
+        private void SkipBlock(int minIndent)
+        {
+            while (_currentLine < _lines.Length)
+            {
+                string rawLine = _lines[_currentLine];
+                if (string.IsNullOrWhiteSpace(rawLine)) { _currentLine++; continue; }
+                int indent = GetIndent(rawLine);
+                if (indent < minIndent) return;
+                _currentLine++;
+            }
+        }
+
+        private int GetIndent(string line)
+        {
+            int count = 0;
+            foreach (char c in line)
+            {
+                if (c == ' ') count++;
+                else if (c == '\t') count += 4;
+                else break;
+            }
+            return count;
+        }
+
+        private void ExecuteStatement(string line)
+        {
+            if (line.Contains("="))
+            {
+                var parts = line.Split('=', 2);
+                string varName = parts[0].Trim();
+                long val = EvaluateExpression(parts[1].Trim());
+                _variables[varName] = val;
+                return;
+            }
+
+            EvaluateExpression(line);
+        }
+
+        private long EvaluateExpression(string expr)
+        {
+            expr = expr.Trim();
+            if (long.TryParse(expr, out long res)) return res;
+            if (expr.StartsWith("0x") && long.TryParse(expr.Substring(2), System.Globalization.NumberStyles.HexNumber, null, out res)) return res;
+
+            if (expr.Contains("(") && expr.EndsWith(")"))
+            {
+                int openParen = expr.IndexOf('(');
+                string funcName = expr.Substring(0, openParen).Trim().ToLower();
+                string argsStr = expr.Substring(openParen + 1, expr.Length - openParen - 2);
+                var args = SplitArgs(argsStr);
+
+                return CallFunction(funcName, args);
+            }
+
+            if (_variables.TryGetValue(expr, out long varVal)) return varVal;
+
+            if (expr.Contains("+") || expr.Contains("-"))
+            {
+                return _parent.EvaluateMathExpression(expr, _variables);
+            }
+
+            return 0;
+        }
+
+        private List<string> SplitArgs(string argsStr)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(argsStr)) return result;
+
+            int parenDepth = 0;
+            bool inQuotes = false;
+            int start = 0;
+            for (int i = 0; i < argsStr.Length; i++)
+            {
+                char c = argsStr[i];
+                if (c == '\"') inQuotes = !inQuotes;
+                if (inQuotes) continue;
+
+                if (c == '(') parenDepth++;
+                else if (c == ')') parenDepth--;
+                else if (c == ',' && parenDepth == 0)
+                {
+                    result.Add(argsStr.Substring(start, i - start).Trim());
+                    start = i + 1;
+                }
+            }
+            result.Add(argsStr.Substring(start).Trim());
+            return result;
+        }
+
+        private long CallFunction(string name, List<string> args)
+        {
+            switch (name)
+            {
+                case "find":
+                    if (args.Count < 1) return -1;
+                    string pattern = args[0].Trim('\"');
+                    long found = _parent.FindSignature(pattern);
+                    if (found != -1) _parent.SafeLogThreadSafe($"[Search] Signature found: 0x{found:X8}", Brushes.Violet);
+                    else _parent.SafeLogThreadSafe($"[Search] Signature NOT found: {pattern}", Brushes.Orange);
+                    return found;
+
+                case "offset":
+                    if (args.Count < 2) return 0;
+                    return EvaluateExpression(args[0]) + EvaluateExpression(args[1]);
+
+                case "write":
+                    if (args.Count < 2) return 0;
+                    long writeAddr = EvaluateExpression(args[0]);
+                    byte[] writeBytes = MainWindow.ParseBytes(args[1].Trim('\"'));
+                    Patch(writeAddr, writeBytes);
+                    return 1;
+
+                case "nop":
+                    if (args.Count < 2) return 0;
+                    long nopAddr = EvaluateExpression(args[0]);
+                    int nopSize = (int)EvaluateExpression(args[1]);
+                    byte[] nops = new byte[nopSize];
+                    for (int i = 0; i < nopSize; i++) nops[i] = 0x90;
+                    Patch(nopAddr, nops);
+                    return 1;
+
+                case "fill":
+                    if (args.Count < 3) return 0;
+                    long fillAddr = EvaluateExpression(args[0]);
+                    int fillSize = (int)EvaluateExpression(args[1]);
+                    byte fillByte = (byte)EvaluateExpression(args[2]);
+                    byte[] fillBuf = new byte[fillSize];
+                    for (int i = 0; i < fillSize; i++) fillBuf[i] = fillByte;
+                    Patch(fillAddr, fillBuf);
+                    return 1;
+
+                case "write_string":
+                    if (args.Count < 2) return 0;
+                    long strAddr = EvaluateExpression(args[0]);
+                    string text = args[1].Trim('\"');
+                    string encName = args.Count > 2 ? args[2].Trim('\"') : "utf8";
+                    var encoding = encName.ToLower() == "utf16" ? System.Text.Encoding.Unicode : System.Text.Encoding.UTF8;
+                    Patch(strAddr, encoding.GetBytes(text));
+                    return 1;
+
+                case "assemble":
+                    if (args.Count < 2) return 0;
+                    long asmAddr = EvaluateExpression(args[0]);
+                    string asmCode = args[1].Trim('\"');
+                    byte[]? asmBytes = AsmLogic.Assemble(asmCode, asmAddr);
+                    if (asmBytes != null) Patch(asmAddr, asmBytes);
+                    else _parent.SafeLogThreadSafe($"[Error] Failed to assemble: {asmCode}", Brushes.Red);
+                    return 1;
+
+                case "make_jmp":
+                    if (args.Count < 2) return 0;
+                    long from = EvaluateExpression(args[0]);
+                    long to = EvaluateExpression(args[1]);
+                    int rel = (int)(to - (from + 5));
+                    byte[] jmp = new byte[5];
+                    jmp[0] = 0xE9;
+                    jmp[1] = (byte)rel;
+                    jmp[2] = (byte)(rel >> 8);
+                    jmp[3] = (byte)(rel >> 16);
+                    jmp[4] = (byte)(rel >> 24);
+                    Patch(from, jmp);
+                    return 1;
+
+                case "read_byte":
+                    if (args.Count < 1) return 0;
+                    return _parent.HexView.ReadByte(EvaluateExpression(args[0]));
+
+                case "read_dword":
+                    if (args.Count < 1) return 0;
+                    long dwAddr = EvaluateExpression(args[0]);
+                    byte[] dwBuf = new byte[4];
+                    for (int i = 0; i < 4; i++) dwBuf[i] = _parent.HexView.ReadByte(dwAddr + i);
+                    if (_parent.IsLittleEndian) return BitConverter.ToUInt32(dwBuf, 0);
+                    else return (uint)((dwBuf[0] << 24) | (dwBuf[1] << 16) | (dwBuf[2] << 8) | dwBuf[3]);
+
+                case "check_bytes":
+                    if (args.Count < 2) return 0;
+                    long chkAddr = EvaluateExpression(args[0]);
+                    byte[] chkExpected = MainWindow.ParseBytes(args[1].Trim('\"'));
+                    for (int i = 0; i < chkExpected.Length; i++)
+                        if (_parent.HexView.ReadByte(chkAddr + i) != chkExpected[i]) return 0;
+                    return 1;
+
+                case "label":
+                    if (args.Count < 2) return 0;
+                    string labelName = args[0].Trim('\"');
+                    long labelAddr = EvaluateExpression(args[1]);
+                    _variables[labelName] = labelAddr;
+                    return labelAddr;
+
+                case "log":
+                    string msg = args.Count > 0 ? args[0].Trim('\"') : "";
+                    if (args.Count > 0 && !args[0].StartsWith("\""))
+                        msg = EvaluateExpression(args[0]).ToString("X");
+                    _parent.SafeLogThreadSafe($"[Script] {msg}", Brushes.White);
+                    return 1;
+
+                default:
+                    return 0;
+            }
+        }
+
+        private void Patch(long addr, byte[] bytes)
+        {
+            if (addr < 0 || addr + bytes.Length > _parent.HexView.FileLength) return;
+
+            byte[] oldBytes = new byte[bytes.Length];
+            for (int i = 0; i < bytes.Length; i++)
+                oldBytes[i] = _parent.HexView.ReadByte(addr + i);
+
+            _parent.SafeLogThreadSafe($"[Patch] 0x{addr:X8}: {BitConverter.ToString(oldBytes).Replace("-", " ")} -> {BitConverter.ToString(bytes).Replace("-", " ")}", Brushes.YellowGreen);
+
+            lock (_parent._undoStack)
+            {
+                _parent._undoStack.Push((addr, oldBytes, bytes));
+                ChangesCount++;
+            }
+
+            _parent.Dispatcher.Invoke(() =>
+            {
+                for (int i = 0; i < bytes.Length; i++)
+                    _parent.HexView.WriteByte(addr + i, bytes[i]);
+                _parent.HexView.InvalidateVisual();
+            });
+        }
     }
 
-    private static long EvalMul(ReadOnlySpan<char> s, ref int p)
+    private long EvaluateMathExpression(string expr, Dictionary<string, long> variables)
     {
-        long lhs = EvalUnary(s, ref p); SkipWs(s, ref p);
-        while (p < s.Length && (s[p] == '*' || s[p] == '/' || s[p] == '%'))
+        
+        try
         {
-            char op = s[p++]; SkipWs(s, ref p);
-            long rhs = EvalUnary(s, ref p);
-            lhs = op == '*' ? lhs * rhs
-                : op == '/' ? (rhs == 0 ? 0 : lhs / rhs)
-                : (rhs == 0 ? 0 : lhs % rhs);
-            SkipWs(s, ref p);
+            var parts = expr.Split(new[] { '+', '-' }, 2);
+            if (parts.Length == 1) return 0;
+
+            long left = 0;
+            string lPart = parts[0].Trim();
+            if (variables.TryGetValue(lPart, out long lv)) left = lv;
+            else if (lPart.StartsWith("0x")) left = long.Parse(lPart.Substring(2), System.Globalization.NumberStyles.HexNumber);
+            else long.TryParse(lPart, out left);
+
+            long right = 0;
+            string rPart = parts[1].Trim();
+            if (variables.TryGetValue(rPart, out long rv)) right = rv;
+            else if (rPart.StartsWith("0x")) right = long.Parse(rPart.Substring(2), System.Globalization.NumberStyles.HexNumber);
+            else long.TryParse(rPart, out right);
+
+            return expr.Contains("+") ? left + right : left - right;
         }
-        return lhs;
+        catch { return 0; }
     }
-
-    private static long EvalUnary(ReadOnlySpan<char> s, ref int p)
-    {
-        SkipWs(s, ref p);
-        if (p < s.Length && s[p] == '-') { p++; return -EvalAtom(s, ref p); }
-        if (p < s.Length && s[p] == '+') { p++; }
-        return EvalAtom(s, ref p);
-    }
-
-    private static long EvalAtom(ReadOnlySpan<char> s, ref int p)
-    {
-        SkipWs(s, ref p);
-        if (p >= s.Length) return 0;
-
-        if (s[p] == '(')
-        {
-            p++;
-            long val = EvalAdd(s, ref p); SkipWs(s, ref p);
-            if (p < s.Length && s[p] == ')') p++;
-            return val;
-        }
-        if (p + 1 < s.Length && s[p] == '0' && (s[p + 1] == 'x' || s[p + 1] == 'X'))
-        {
-            p += 2; long val = 0;
-            while (p < s.Length && IsHexChar(s[p]))
-                val = val * 16 + HexNibble(s[p++]);
-            return val;
-        }
-        if (s[p] >= '0' && s[p] <= '9')
-        {
-            long val = 0;
-            while (p < s.Length && s[p] >= '0' && s[p] <= '9')
-                val = val * 10 + (s[p++] - '0');
-            return val;
-        }
-        return 0;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void SkipWs(ReadOnlySpan<char> s, ref int p)
-    { while (p < s.Length && s[p] == ' ') p++; }
     private static byte[] ParseBytes(string s) => ParseBytes(s.AsSpan());
     private static byte[] ParseBytes(ReadOnlySpan<char> input)
     {
