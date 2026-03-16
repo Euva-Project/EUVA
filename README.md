@@ -140,6 +140,47 @@ Bridge the gap between **Logic** and **Semantics**. Our experimental AI layer he
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+Before building, make sure you have the following installed:
+
+| Requirement | Version | Link |
+| :--- | :--- | :--- |
+| .NET SDK | 8.0+ | [download](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) |
+| Windows OS | 10 / 11 | Required (WPF) |
+
+> [!NOTE]
+> EUVA is a **Windows-only** application built on WPF. Linux/macOS are not currently supported.
+
+### Installation
+```bash
+# 1. Clone the repository
+git clone https://github.com/pumpkin-bit/EUVA.git
+cd EUVA/EUVA.UI
+
+# 2. Restore dependencies
+dotnet restore
+
+# 3. Build in Release mode
+dotnet build -c Release
+
+# 4. Run (optional, or launch the compiled binary directly)
+dotnet run -c Release
+```
+
+### First Launch
+
+1. Open a binary file via **File → Open** or drag-and-drop onto the window
+2. You can change bytes in a hex editor using an internal DSL language.
+3. Press `Ctrl+D` to open the **Disassembler**, `Ctrl+E` for the **Decompiler**
+4. *(Optional)* Configure your AI provider in **AI Settings** in the decompiler window to enable semantic refactoring
+
+> [!WARNING]
+> When using the **Glass Engine** (C# scripting), ensure the `Scripts/` folder contains valid `.cs` implementations to avoid pipeline startup latency.
+
+
+<!-- ## 🚀 Quick Start
+
 ### Installation
 ```
 git clone https://github.com/pumpkin-bit/EUVA.git
@@ -150,7 +191,7 @@ dotnet run // optional
 ```
 
 > [!WARNING]
-> When using internal scripts (Glass Engine), ensure the `Scripts/` folder is populated with valid `.cs` implementations to avoid pipeline startup latency.
+> When using internal scripts (Glass Engine), ensure the `Scripts/` folder is populated with valid `.cs` implementations to avoid pipeline startup latency. -->
 
 ---
 
