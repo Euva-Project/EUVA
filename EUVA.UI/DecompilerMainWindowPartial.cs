@@ -227,6 +227,66 @@ public partial class MainWindow
             Visibility = Visibility.Collapsed
         };
 
+        var aiExplainBtn = new Button
+        {
+            Content = "✨ AI Explain",
+            FontSize = 12,
+            Margin = new Thickness(6, 0, 0, 0),
+            Padding = new Thickness(8, 2, 8, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(Color.FromRgb(0x31, 0x32, 0x44)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xC1, 0x97, 0xF6)), 
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x45, 0x47, 0x5A)),
+            Visibility = Visibility.Collapsed,
+        };
+        aiExplainBtn.Click += async (_, _) =>
+        {
+            if (_currentFunctionOffset < 0 || _decompTextView == null) return;
+
+            string apiKey = AiSecurityHelper.Decrypt(EuvaSettings.Default.AiApiKeyEncrypted);
+
+            aiExplainBtn.IsEnabled = false;
+            aiExplainBtn.Content = "⏳ AI Thinking...";
+            try
+            {
+                var blocks = _pseudocodeGen.LastBlocks;
+                if (blocks == null) return;
+
+                string miniIr = AiContextGenerator.Generate(
+                    blocks,
+                    _pseudocodeGen.ResolvedImports,
+                    _pseudocodeGen.ResolvedStrings,
+                    _pseudocodeGen.Pipeline?.LastSignature,
+                    _pseudocodeGen.UserRenames);
+
+                using var client = new AiClient();
+                const string explainPrompt = "Analyze this decompiled C code. Provide a concise, high-level summary of what this function does. Focus on its purpose, key WinAPI calls, and logic flow. Return ONLY the summary text. Do NOT use markdown or intros.";
+                
+                string response = await client.RequestRenamesAsync(
+                    apiKey,
+                    explainPrompt,
+                    miniIr,
+                    EuvaSettings.Default.AiBaseUrl,
+                    EuvaSettings.Default.AiModelName);
+
+                _pseudocodeGen.AiFunctionSummary = response.Trim();
+                
+                AnalyzeFunction(_currentFunctionOffset);
+                LogMessage("[Decomp] AI Function summary generated.");
+                rejectAiBtn.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"[Decomp] AI Explain failed: {ex.Message}");
+                MessageBox.Show($"AI Explain failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                aiExplainBtn.IsEnabled = true;
+                aiExplainBtn.Content = "✨ AI Explain";
+            }
+        };
+
         rejectAiBtn.Click += (_, _) =>
         {
             _pseudocodeGen.ClearAiRenames();
@@ -240,6 +300,7 @@ public partial class MainWindow
             
             rejectAiBtn.Visibility = Visibility.Collapsed;
             jumpAiBtn.Visibility = Visibility.Collapsed;
+            aiExplainBtn.Visibility = Visibility.Collapsed;
         };
         panel.Children.Add(rejectAiBtn);
 
@@ -309,6 +370,7 @@ public partial class MainWindow
                 LogMessage($"[Decomp] AI Refactoring complete: {newRenames.Count} variables renamed.");
                 rejectAiBtn.Visibility = Visibility.Visible;
                 jumpAiBtn.Visibility = Visibility.Visible;
+                aiExplainBtn.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
@@ -322,6 +384,8 @@ public partial class MainWindow
             }
         };
         panel.Children.Add(aiRefactorBtn);
+
+        panel.Children.Add(aiExplainBtn);
 
         var aiSettingsBtn = new Button
         {

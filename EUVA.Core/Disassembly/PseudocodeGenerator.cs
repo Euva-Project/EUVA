@@ -15,6 +15,7 @@ public sealed class PseudocodeGenerator
     private Dictionary<string, VariableSymbol>? _globalRenames;
     private Dictionary<string, HashSet<ulong>>? _globalStructs;
     private string _currentFuncName = "sub_0";
+    public string? AiFunctionSummary { get; set; }
 
     
     private DecompilationPipeline? _pipeline;
@@ -76,6 +77,7 @@ public sealed class PseudocodeGenerator
 
     public void ClearAiRenames()
     {
+        AiFunctionSummary = null;
         if (_globalRenames == null) return;
         var toRemove = _globalRenames.Where(kv => kv.Value.IsAiGenerated).Select(kv => kv.Key).ToList();
         foreach (var k in toRemove) _globalRenames.Remove(k);
@@ -106,7 +108,7 @@ public sealed class PseudocodeGenerator
         byte* fileData, long fileLength, long baseAddress)
     {
         EnsurePipeline();
-        return _pipeline!.DecompileFunction(blocks, fileData, fileLength, baseAddress, _currentFuncName);
+        return _pipeline!.DecompileFunction(blocks, fileData, fileLength, baseAddress, _currentFuncName, AiFunctionSummary);
     }
 
     public IrBlock[]? LastBlocks => _pipeline?.LastBlocks;

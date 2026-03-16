@@ -36,7 +36,7 @@ public sealed class DecompilationPipeline
  
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public unsafe PseudocodeLine[] DecompileFunction(BasicBlock[] cfgBlocks,
-        byte* fileData, long fileLength, long baseAddress, string? funcName = null)
+        byte* fileData, long fileLength, long baseAddress, string? funcName = null, string? summary = null)
     {
         if (cfgBlocks.Length == 0) return Array.Empty<PseudocodeLine>();
 
@@ -127,6 +127,7 @@ public sealed class DecompilationPipeline
         emitter.SetSignature(LastSignature);
         emitter.SetStructs(LastStructs);
         emitter.SetVTables(LastVTables);
+        emitter.SetSummary(summary);
 
         return emitter.Emit(LastStructuredAst, irBlocks);
     }

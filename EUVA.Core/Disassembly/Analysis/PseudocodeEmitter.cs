@@ -17,6 +17,7 @@ public sealed class PseudocodeEmitter
     private IrBlock[]? _blocks;
 
     private readonly HashSet<string> _aiNames = new();
+    private string? _summary;
 
     public PseudocodeEmitter(
         Dictionary<ulong, string>? imports = null,
@@ -34,12 +35,26 @@ public sealed class PseudocodeEmitter
     public void SetSignature(CallingConventionAnalyzer.FunctionSignature sig) => _signature = sig;
     public void SetStructs(List<StructReconstructor.RecoveredStruct> structs) => _structs = structs;
     public void SetVTables(List<VTableDetector.VTableCall>? vtables) => _vtables = vtables ?? new();
+    public void SetSummary(string? summary) => _summary = summary;
 
     public PseudocodeLine[] Emit(StructuredNode root, IrBlock[] blocks)
     {
         _blocks = blocks;
         var lines = new List<PseudocodeLine>();
         _indentLevel = 0;
+
+        if (!string.IsNullOrEmpty(_summary))
+        {
+            lines.Add(new PseudocodeLine("/* AI SUMMARY:", new[] { new PseudocodeSpan(0, 14, PseudocodeSyntax.Comment) }));
+            
+            var wrappedLines = WordWrap(_summary, 80);
+            foreach (var sl in wrappedLines)
+            {
+                lines.Add(new PseudocodeLine("   " + sl, new[] { new PseudocodeSpan(0, sl.Length + 3, PseudocodeSyntax.Comment) }));
+            }
+            lines.Add(new PseudocodeLine("*/", new[] { new PseudocodeSpan(0, 2, PseudocodeSyntax.Comment) }));
+            lines.Add(new PseudocodeLine("", Array.Empty<PseudocodeSpan>()));
+        }
 
         EmitFunctionHeader(lines);
 
@@ -801,18 +816,39 @@ public sealed class PseudocodeEmitter
             return $"*({TypeName(op.BitSize, op.Type)}*)nullptr";
 
         string addrExpr = parts[0];
-        for (int i = 1; i < parts.Count; i++)
+        if (parts.Count > 1) 
+            addrExpr = $"({string.Join(" + ", parts)})";
+
+        return $"*({TypeName(op.BitSize, op.Type)}*){addrExpr}";
+    }
+
+    private static List<string> WordWrap(string text, int maxLineLength)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrEmpty(text)) return result;
+
+        var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        foreach (var line in lines)
         {
-            if (parts[i].StartsWith("+ ") || parts[i].StartsWith("- "))
-                addrExpr += $" {parts[i]}";
-            else
-                addrExpr += $" + {parts[i]}";
+            if (line.Length <= maxLineLength)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            string remaining = line;
+            while (remaining.Length > maxLineLength)
+            {
+                int wrapIndex = remaining.LastIndexOf(' ', maxLineLength);
+                if (wrapIndex == -1) wrapIndex = maxLineLength;
+
+                result.Add(remaining.Substring(0, wrapIndex).TrimEnd());
+                remaining = remaining.Substring(wrapIndex).TrimStart();
+            }
+            if (remaining.Length > 0) result.Add(remaining);
         }
 
-        if (addrExpr.StartsWith("+ "))
-            addrExpr = addrExpr.Substring(2);
-
-        return $"*({TypeName(op.BitSize, op.Type)}*)({addrExpr})";
+        return result;
     }
 
     private string FormatCallTarget(IrOperand op)
