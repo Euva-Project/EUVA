@@ -89,15 +89,6 @@ public sealed class DisassemblerHexView : FrameworkElement
         set { _displayMode = value; RecalcLayout(); Redraw(); }
     }
 
-    public readonly struct PeSectionInfo
-    {
-        public readonly string Name;
-        public readonly long FileOffset;
-        public readonly long Size;
-        public readonly uint VirtualAddress;
-        public PeSectionInfo(string name, long fileOffset, long size, uint virtualAddress)
-        { Name = name; FileOffset = fileOffset; Size = size; VirtualAddress = virtualAddress; }
-    }
 
     
     private MemoryMappedViewAccessor? _accessor;
@@ -137,7 +128,6 @@ public sealed class DisassemblerHexView : FrameworkElement
     private const int MaxHexBytesShown = 16;  
     private const int HeaderHeight = 25;
     private const int BannerHeight = 22;
-    private const int ZeroCollapseThreshold = 4; 
 
     private double _pixelsPerDip = 1.0;
     private int CellW => (int)Math.Ceiling(CharWidth * _pixelsPerDip);
@@ -159,11 +149,12 @@ public sealed class DisassemblerHexView : FrameworkElement
     
     private uint _cBg, _cOffset, _cByteNorm, _cByteNull, _cByteHigh, _cByteCtrl;
     private uint _cAsmMnem, _cAsmOp, _cHeaderBg, _cHeader, _cSep, _cCursorBg, _cCursorFg;
-    private uint _cRowAlt, _cBannerBg, _cBannerFg, _cCollapsed;
+    private uint _cRowAlt, _cBannerBg, _cBannerFg;
     private uint _cAsmReg, _cAsmNum, _cAsmKw, _cAsmPunct;
-
     
     public event EventHandler<long>? OffsetSelected;
+    public event EventHandler<long>? FindParentFunctionRequested;
+    public event EventHandler<long>? XrefsRequested;
 
     public DisassemblerHexView()
     {
@@ -181,6 +172,21 @@ public sealed class DisassemblerHexView : FrameworkElement
             int h = (int)Math.Max(1, ActualHeight * _pixelsPerDip);
             ResizeBmp(w, h); RecalcLayout(); Redraw();
         };
+        InitContextMenu();
+    }
+
+    private void InitContextMenu()
+    {
+        var cm = new ContextMenu();
+        var miParent = new MenuItem { Header = "Go to Parent Function", InputGestureText = "P / Enter" };
+        miParent.Click += (_, _) => FindParentFunctionRequested?.Invoke(this, _selectedOffset);
+        cm.Items.Add(miParent);
+
+        var miXrefs = new MenuItem { Header = "Find Xrefs", InputGestureText = "X" };
+        miXrefs.Click += (_, _) => XrefsRequested?.Invoke(this, _selectedOffset);
+        cm.Items.Add(miXrefs);
+
+        ContextMenu = cm;
     }
 
     protected override int VisualChildrenCount => 1;
@@ -213,8 +219,12 @@ public sealed class DisassemblerHexView : FrameworkElement
             byte* ptr = null;
             _accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
             try {
+                long syncStart = Math.Max(0, offset - 64);
+                long syncPoint = _engine.GetSyncOffset(ptr, (int)_fileLength, 0, syncStart, 64);
                 
-                _topOffset = _engine.GetSyncOffset(ptr, (int)_fileLength, 0, offset, 128);
+                _engine.FindInstructionEnclosing(ptr, (int)_fileLength, 0, syncPoint, offset, out long instrStart, out _);
+                
+                _topOffset = instrStart;
             } finally {
                 _accessor.SafeMemoryMappedViewHandle.ReleasePointer();
             }
@@ -274,8 +284,7 @@ public sealed class DisassemblerHexView : FrameworkElement
         _cCursorFg = C(ThC("Hex_ByteSelected",     Color.FromRgb(0x1E,0x1E,0x2E)));
         _cRowAlt      = C(Color.FromArgb(0x10,0xCD,0xD6,0xF4));
         _cBannerBg    = C(Color.FromRgb(0x2A,0x2A,0x3E));
-        _cBannerFg    = C(Color.FromRgb(0x89,0xB4,0xFA));
-        _cCollapsed   = C(Color.FromRgb(0x58,0x5B,0x70));
+        _cBannerFg    = C(Color.FromRgb(0x89,0xb4,0xfa));
         
         _cAsmReg      = C(Color.FromRgb(0xF3,0x8B,0xA8)); 
         _cAsmNum      = C(Color.FromRgb(0xFA,0xB3,0x87)); 
@@ -450,56 +459,6 @@ public sealed class DisassemblerHexView : FrameworkElement
             int i = 0;
             while (i < _visibleLineCount)
             {
-                ref var ln = ref _visibleLines[i];
-
-                
-                if (ln.Length == 2)
-                {
-                    long actOff = ln.Offset - (long)_accessor!.PointerOffset;
-                    bool isZeroPair = (actOff >= 0 && actOff + 1 < _fileLength)
-                        && mapPtr[actOff] == 0 && mapPtr[actOff + 1] == 0;
-
-                    if (isZeroPair)
-                    {
-                        
-                        int zeroStart = i;
-                        long zeroBytes = 0;
-                        while (i < _visibleLineCount)
-                        {
-                            ref var zln = ref _visibleLines[i];
-                            if (zln.Length != 2) break;
-                            long za = zln.Offset - (long)_accessor.PointerOffset;
-                            if (za < 0 || za + 1 >= _fileLength) break;
-                            if (mapPtr[za] != 0 || mapPtr[za + 1] != 0) break;
-                            zeroBytes += zln.Length;
-                            i++;
-                        }
-
-                        if (i - zeroStart >= ZeroCollapseThreshold)
-                        {
-                            
-                            int yPx = contentTop + (int)Math.Floor(row * LineHeight * _pixelsPerDip);
-                            if (yPx + CellH <= _bmpH)
-                            {
-                                FillRect(0, yPx, _bmpW, CellH, _cBannerBg);
-                                Str($"{_visibleLines[zeroStart].Offset:X8}",
-                                    (int)Math.Floor(8 * _pixelsPerDip), yPx, _cOffset);
-                                Str($"; --- {zeroBytes} zero bytes (padding) ---",
-                                    _asmStartPx, yPx, _cCollapsed);
-                                Str($"00 00 x{i - zeroStart}",
-                                    _hexStartPx, yPx, _cCollapsed);
-                            }
-                            row++;
-                            continue; 
-                        }
-                        else
-                        {
-                            
-                            i = zeroStart;
-                        }
-                    }
-                }
-
                 RenderRow(i, contentTop, row, mapPtr);
                 row++;
                 i++;
@@ -521,7 +480,9 @@ public sealed class DisassemblerHexView : FrameworkElement
         
         bool rowSelected = _selectedOffset >= ln.Offset && _selectedOffset < ln.Offset + ln.Length;
         if (rowSelected)
-            FillRect(0, yPx, _bmpW, CellH, C(Color.FromArgb(0x20, 0x89, 0xB4, 0xFA)));
+            FillRect(0, yPx, _bmpW, CellH, (_cCursorBg & 0x00FFFFFF) | 0x20000000);
+
+        
 
         
         Str($"{ln.Offset:X8}", (int)Math.Floor(8*_pixelsPerDip), yPx, _cOffset);
@@ -590,6 +551,8 @@ public sealed class DisassemblerHexView : FrameworkElement
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
         base.OnMouseDown(e); Focus();
+        if (e.ChangedButton == MouseButton.Right) return; 
+        
         int hdrH = (int)(HeaderHeight * _pixelsPerDip);
         var pos = e.GetPosition(this);
         int lineIdx = (int)((pos.Y - hdrH / _pixelsPerDip) / LineHeight);
@@ -644,6 +607,11 @@ public sealed class DisassemblerHexView : FrameworkElement
                 _topOffset = 0; Redraw(); e.Handled = true; break;
             case Key.End when Keyboard.Modifiers == ModifierKeys.Control:
                 _topOffset = Math.Max(0, _fileLength - 64); Redraw(); e.Handled = true; break;
+            case Key.P:
+            case Key.Enter:
+                FindParentFunctionRequested?.Invoke(this, _selectedOffset); e.Handled = true; break;
+            case Key.X:
+                XrefsRequested?.Invoke(this, _selectedOffset); e.Handled = true; break;
         }
     }
 

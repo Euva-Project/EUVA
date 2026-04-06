@@ -124,7 +124,8 @@ public sealed class AiContextGenerator
     {
         string defaultName = NamingConventions.GetVariableName(op);
         if (userRenames != null && userRenames.TryGetValue(defaultName, out var sym))
-            return sym.Name;
+            return sym.Name + (sym.IsAiGenerated ? " /* AI */" : "");
         return defaultName;
     }
 }
+

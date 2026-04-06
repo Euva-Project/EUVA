@@ -30,9 +30,6 @@
                 </Style.Triggers>
             </Style>
 
-            <Style TargetType="ScrollBar">
-                <Setter Property="Background" Value="{DynamicResource Border}"/>
-            </Style>
 
         </ResourceDictionary>
     </Application.Resources>

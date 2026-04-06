@@ -2,21 +2,25 @@
 
 using System.IO.MemoryMappedFiles;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Controls;
 using System.Windows.Media;
 using AsmResolver.PE;
 using AsmResolver.PE.File;
+using Iced.Intel;
 using EUVA.Core.Disassembly;
 using EUVA.UI.Controls;
 using EUVA.UI.Controls.Decompilation;
 using EUVA.UI.Controls.Hex;
 using static EUVA.UI.Controls.Hex.DisassemblerHexView;
+using System.Windows.Input;
 using System.Collections.Generic;
 using EUVA.Core.Disassembly.Analysis;
 using EUVA.Core.Services;
 using EUVA.UI.Windows;
 using EUVA.UI.Theming;
 using EUVA.UI.Helpers;
+
 
 namespace EUVA.UI;
 
@@ -32,8 +36,13 @@ public partial class MainWindow
     private bool _textModeActive;
     private Grid? _decompRightPanel; 
     private readonly Stack<Dictionary<string, VariableSymbol>> _aiRenameHistory = new();
-
-    
+    private ExecutableRange[]? _executableRanges;
+    private TreeView? _importTreeView;
+    private List<DllImportInfo>? _importedDlls;
+    private Grid? _sidePanelContent;
+    private int _peBitness = 64;
+    private readonly XrefManager _xrefManager = new();
+    private List<Function> _allFunctions = new();
 
     private void MenuDecompiler_Click(object sender, RoutedEventArgs e)
     {
@@ -48,6 +57,8 @@ public partial class MainWindow
 
         if (_decompTabItem != null)
         {
+            if (_centerTabControl!.SelectedItem == _decompTabItem) return;
+            
             _centerTabControl!.SelectedItem = _decompTabItem;
             _decompDisasmView!.ScrollToOffset(HexView.CurrentScrollLine * HexView.BytesPerLine);
             LogMessage("[Decomp] Switched to Disasm+Decompiler tab.");
@@ -64,6 +75,8 @@ public partial class MainWindow
             _decompDisasmView.SetDataSource(mmf, accessor, HexView.FileLength);
         }
         _decompDisasmView.OffsetSelected += DecompDisasmView_OffsetSelected;
+        _decompDisasmView.FindParentFunctionRequested += (_, off) => HandleFindParentFunction(off);
+        _decompDisasmView.XrefsRequested += (_, off) => HandleFindXrefs(off);
 
         
         SetDecompPeInfo(_decompDisasmView);
@@ -79,15 +92,23 @@ public partial class MainWindow
         _decompGraphView.BlockSelected += DecompGraphView_BlockSelected;
 
         
+        
         _decompTextView = new DecompilerTextView();
         _decompTextView.SetPseudocodeGenerator(_pseudocodeGen);
         _decompTextView.RenameApplied += (_, _) => 
         {
             if (_currentFunctionOffset >= 0)
             {
-                AnalyzeFunction(_currentFunctionOffset); 
-                LogMessage("[Decomp] UI refreshed based on global rename.");
+                RefreshDecompiledOutput();
+                LogMessage("[Decomp] UI fast-refreshed based on global rename.");
             }
+        };
+
+
+        _decompTextView.JumpRequest += (_, addr) =>
+        {
+            _decompDisasmView?.ScrollToOffset(addr);
+            AnalyzeFunction(addr);
         };
         _decompTextView.Visibility = Visibility.Collapsed;
         _textModeActive = false;
@@ -98,26 +119,124 @@ public partial class MainWindow
         _decompRightPanel.Children.Add(_decompTextView);
 
         
+        _functionListView = new ListView
+        {
+            Background = (Brush)FindResource("Sidebar"),
+            Foreground = (Brush)FindResource("ForegroundPrimary"),
+            BorderThickness = new Thickness(0),
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 12,
+            Padding = new Thickness(0),
+            Margin = new Thickness(0)
+        };
+
+
+        var headerStyle = new Style(typeof(GridViewColumnHeader));
+        headerStyle.Setters.Add(new Setter(GridViewColumnHeader.BackgroundProperty, (Brush)FindResource("Surface0")));
+        headerStyle.Setters.Add(new Setter(GridViewColumnHeader.ForegroundProperty, (Brush)FindResource("ForegroundSecondary")));
+        headerStyle.Setters.Add(new Setter(GridViewColumnHeader.BorderBrushProperty, (Brush)FindResource("Border")));
+        headerStyle.Setters.Add(new Setter(GridViewColumnHeader.BorderThicknessProperty, new Thickness(0, 0, 1, 1)));
+        headerStyle.Setters.Add(new Setter(GridViewColumnHeader.PaddingProperty, new Thickness(8, 4, 8, 4)));
+        headerStyle.Setters.Add(new Setter(GridViewColumnHeader.HorizontalContentAlignmentProperty, HorizontalAlignment.Left));
+        
+
+        var headerTemplate = new ControlTemplate(typeof(GridViewColumnHeader));
+        var headerBorder = new FrameworkElementFactory(typeof(Border));
+        headerBorder.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(GridViewColumnHeader.BackgroundProperty));
+        headerBorder.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(GridViewColumnHeader.BorderBrushProperty));
+        headerBorder.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(GridViewColumnHeader.BorderThicknessProperty));
+        headerBorder.SetValue(Border.PaddingProperty, new TemplateBindingExtension(GridViewColumnHeader.PaddingProperty));
+        
+        var headerContent = new FrameworkElementFactory(typeof(ContentPresenter));
+        headerContent.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        headerBorder.AppendChild(headerContent);
+        headerTemplate.VisualTree = headerBorder;
+        headerStyle.Setters.Add(new Setter(GridViewColumnHeader.TemplateProperty, headerTemplate));
+
+
+        var itemStyle = new Style(typeof(ListViewItem));
+        itemStyle.Setters.Add(new Setter(ListViewItem.BackgroundProperty, Brushes.Transparent));
+        itemStyle.Setters.Add(new Setter(ListViewItem.BorderThicknessProperty, new Thickness(0)));
+        itemStyle.Setters.Add(new Setter(ListViewItem.MarginProperty, new Thickness(0)));
+        itemStyle.Setters.Add(new Setter(ListViewItem.PaddingProperty, new Thickness(0)));
+        
+        var itemTemplate = new ControlTemplate(typeof(ListViewItem));
+        var itemBorder = new FrameworkElementFactory(typeof(Border));
+        itemBorder.Name = "Bd";
+        itemBorder.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(ListViewItem.BackgroundProperty));
+        itemBorder.SetValue(Border.PaddingProperty, new Thickness(4, 2, 4, 2));
+        itemBorder.SetValue(Border.SnapsToDevicePixelsProperty, true);
+        
+        var itemPresenter = new FrameworkElementFactory(typeof(GridViewRowPresenter));
+        itemPresenter.SetValue(GridViewRowPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        itemBorder.AppendChild(itemPresenter);
+        itemTemplate.VisualTree = itemBorder;
+        
+        var selectedTrigger = new Trigger { Property = ListViewItem.IsSelectedProperty, Value = true };
+        selectedTrigger.Setters.Add(new Setter(Border.BackgroundProperty, (Brush)FindResource("Surface0"), "Bd"));
+        selectedTrigger.Setters.Add(new Setter(ListViewItem.ForegroundProperty, (Brush)FindResource("Accent")));
+        itemTemplate.Triggers.Add(selectedTrigger);
+        
+        var hoverTrigger = new Trigger { Property = ListViewItem.IsMouseOverProperty, Value = true };
+        hoverTrigger.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x30, 0x58, 0x5B, 0x70)), "Bd"));
+        itemTemplate.Triggers.Add(hoverTrigger);
+        
+        itemStyle.Setters.Add(new Setter(ListViewItem.TemplateProperty, itemTemplate));
+
+        _functionListView.ItemContainerStyle = itemStyle;
+
+        var gv = new GridView();
+        gv.ColumnHeaderContainerStyle = headerStyle;
+        gv.Columns.Add(new GridViewColumn { Header = "Name", DisplayMemberBinding = new Binding("Name"), Width = 180 });
+        gv.Columns.Add(new GridViewColumn { Header = "Address", DisplayMemberBinding = new Binding("AddressHex"), Width = 90 });
+        gv.Columns.Add(new GridViewColumn { Header = "Type", DisplayMemberBinding = new Binding("Type"), Width = 60 });
+        _functionListView.View = gv;
+        _functionListView.MouseDoubleClick += (_, _) =>
+        {
+            if (_functionListView.SelectedItem is FunctionItem item)
+            {
+                _decompDisasmView?.ScrollToOffset(item.Address);
+                AnalyzeFunction(item.Address);
+            }
+        };
+
+
+        
         var splitGrid = new Grid();
-        splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) }); 
         splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1) });
-        splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) }); 
+        splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1) });
+        splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.8, GridUnitType.Star) }); 
 
         Grid.SetColumn(_decompDisasmView, 0);
         splitGrid.Children.Add(_decompDisasmView);
 
-        var splitter = new GridSplitter
-        {
-            Width = 1,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = new SolidColorBrush(Color.FromRgb(0x45, 0x47, 0x5A)),
-            Cursor = System.Windows.Input.Cursors.SizeWE
-        };
-        Grid.SetColumn(splitter, 1);
-        splitGrid.Children.Add(splitter);
+        var splitter1 = new GridSplitter { Width = 1, HorizontalAlignment = HorizontalAlignment.Stretch, Background = new SolidColorBrush(Color.FromRgb(0x45, 0x47, 0x5A)), Cursor = System.Windows.Input.Cursors.SizeWE };
+        Grid.SetColumn(splitter1, 1);
+        splitGrid.Children.Add(splitter1);
 
         Grid.SetColumn(_decompRightPanel, 2);
         splitGrid.Children.Add(_decompRightPanel);
+
+        var splitter2 = new GridSplitter { Width = 1, HorizontalAlignment = HorizontalAlignment.Stretch, Background = new SolidColorBrush(Color.FromRgb(0x45, 0x47, 0x5A)), Cursor = System.Windows.Input.Cursors.SizeWE };
+        Grid.SetColumn(splitter2, 3);
+        splitGrid.Children.Add(splitter2);
+
+        _sidePanelContent = new Grid();
+        
+        _importTreeView = new TreeView
+        {
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xCD, 0xD6, 0xF4)),
+        };
+        _importTreeView.MouseDoubleClick += ImportTreeView_MouseDoubleClick;
+
+        _sidePanelContent.Children.Add(_functionListView!);
+
+        Grid.SetColumn(_sidePanelContent, 4);
+        splitGrid.Children.Add(_sidePanelContent);
 
         
         var dock = new DockPanel();
@@ -138,8 +257,468 @@ public partial class MainWindow
 
         
         TryAutoAnalyzeEntryPoint();
+        PopulateFunctionList();
 
         LogMessage("[Decomp] Decompiler tab created.");
+    }
+
+    private ListView? _functionListView;
+
+    private void PopulateFunctionList()
+    {
+        if (_functionListView == null || _decompDisasmView == null) return;
+        _functionListView.Items.Clear();
+
+        var sections = _decompDisasmView.PeSections;
+        if (sections.Length == 0) return;
+
+        var functions = new SortedDictionary<long, FunctionItem>();
+        long ep = _decompDisasmView.EntryPointFileOffset;
+
+        if (ep >= 0 && ep < HexView.FileLength) 
+            functions[ep] = new FunctionItem { Name = "EntryPoint", Address = ep, Type = "Export" };
+
+        unsafe
+        {
+            var mmf = HexView.GetMemoryMappedFile();
+            if (mmf != null)
+            {
+                using var acc = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+                byte* ptr = null;
+                acc.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+                try
+                {
+                    var roots = new List<long>();
+                    if (ep >= 0) roots.Add(ep);
+
+                    if (_mapper?.RootStructure != null)
+                    {
+                        var expDir = _mapper.RootStructure.FindByPath("Data Directories", "Export Directory");
+                        if (expDir != null)
+                        {
+                        }
+                    }
+
+                    var discoverer = new FunctionDiscoverer();
+                    _allFunctions = discoverer.Discover(ptr, HexView.FileLength, ep, _executableRanges, _peBitness);
+
+                    foreach (var fn in _allFunctions)
+                    {
+                        if (!functions.ContainsKey(fn.FileOffset))
+                        {
+                            functions[fn.FileOffset] = new FunctionItem { Name = fn.Name, Address = fn.FileOffset };
+                        }
+                    }
+
+
+                    BuildGlobalXrefs(ptr);
+
+                    if (functions.Count < 5)
+                    {
+                        foreach (var sec in sections)
+                        {
+                            if ((sec.Characteristics & 0x20000000) != 0 || sec.Name.Contains(".text"))
+                                ScanSectionForFunctions(ptr, sec, functions);
+                        }
+                    }
+                }
+                finally { acc.SafeMemoryMappedViewHandle.ReleasePointer(); }
+            }
+        }
+
+        foreach (var fn in functions.Values.OrderBy(x => x.Address)) 
+            _functionListView.Items.Add(fn);
+    }
+
+
+    private unsafe void ScanSectionForFunctions(byte* ptr, PeSectionInfo sec, SortedDictionary<long, FunctionItem> functions)
+    {
+        long start = sec.FileOffset;
+        long end = start + sec.Size;
+        if (end > HexView.FileLength) end = HexView.FileLength;
+
+        for (long i = start; i < end - 5; i++)
+        {
+            
+            bool isProlog = false;
+            if (ptr[i] == 0x55 && ptr[i+1] == 0x8B && ptr[i+2] == 0xEC) isProlog = true; 
+            else if (ptr[i] == 0x8B && ptr[i+1] == 0xFF && ptr[i+2] == 0x55 && ptr[i+3] == 0x8B && ptr[i+4] == 0xEC) isProlog = true; 
+            if (isProlog && !functions.ContainsKey(i))
+            {
+                functions[i] = new FunctionItem { Name = $"sub_{i:X}", Address = i };
+            }
+
+            
+            if (ptr[i] == 0xE8)
+            {
+                int rel = *(int*)(ptr + i + 1);
+                long target = i + 5 + rel; 
+                if (target >= start && target < end && !functions.ContainsKey(target))
+                {
+                    
+                    if (ptr[target] == 0x55 || ptr[target] == 0x8B || ptr[target] == 0x33) 
+                    {
+                        functions[target] = new FunctionItem { Name = $"sub_{target:X}", Address = target };
+                    }
+                }
+            }
+        }
+    }
+
+
+    private void PopulateImportTreeView()
+    {
+        if (_importTreeView == null) return;
+        _importTreeView.Items.Clear();
+
+        if (_importedDlls != null && _importedDlls.Count > 0)
+        {
+            foreach (var dll in _importedDlls.OrderBy(x => x.DllName))
+            {
+                var dllNode = new TreeViewItem
+                {
+                    Header = dll.DllName,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xF9, 0xE2, 0xAF)), 
+                    FontWeight = FontWeights.Bold
+                };
+
+                foreach (var entry in dll.Entries.OrderBy(x => x.Name))
+                {
+                    var entryNode = new TreeViewItem
+                    {
+                        Header = entry.Name,
+                        Tag = entry,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xCD, 0xD6, 0xF4))
+                    };
+                    dllNode.Items.Add(entryNode);
+                }
+                _importTreeView.Items.Add(dllNode);
+            }
+            return;
+        }
+
+        var resolved = _pseudocodeGen.ResolvedImports;
+        if (resolved != null && resolved.Count > 0)
+        {
+            var groups = resolved.Values
+                .Select(v => v.Split("::", 2))
+                .Where(p => p.Length == 2)
+                .GroupBy(p => p[0])
+                .OrderBy(g => g.Key);
+
+            foreach (var group in groups)
+            {
+                var dllNode = new TreeViewItem
+                {
+                    Header = group.Key,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xF9, 0xE2, 0xAF)),
+                    FontWeight = FontWeights.Bold
+                };
+
+                foreach (var funcName in group.Select(x => x[1]).OrderBy(x => x))
+                {
+                    var entryNode = new TreeViewItem
+                    {
+                        Header = funcName,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xCD, 0xD6, 0xF4))
+                    };
+                    dllNode.Items.Add(entryNode);
+                }
+                _importTreeView.Items.Add(dllNode);
+            }
+        }
+    }
+
+    private void ImportTreeView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_importTreeView?.SelectedItem is TreeViewItem item && item.Tag is ImportEntry import)
+        {
+            FindAndJumpToXrefs(import);
+        }
+    }
+
+    private uint FileOffsetToRva(long fileOffset)
+    {
+        if (_decompDisasmView == null) return 0;
+    
+        var sections = _decompDisasmView.PeSections;
+        foreach (var sec in sections)
+        {
+            if (fileOffset >= sec.FileOffset && fileOffset < sec.FileOffset + sec.Size)
+            {
+                return (uint)(fileOffset - sec.FileOffset + sec.VirtualAddress);
+            }
+        }
+        return 0;
+    }
+
+    private unsafe void BuildGlobalXrefs(byte* ptr)
+    {
+        if (_executableRanges == null) return;
+        var allInstrs = new List<Instruction>();
+        var reader = new UnsafePointerCodeReader();
+        
+        foreach (var range in _executableRanges)
+        {
+            reader.Reset(ptr + range.Start, (int)(range.End - range.Start));
+            var decoder = Decoder.Create(_peBitness, reader, (ulong)FileOffsetToRva(range.Start));
+            while (decoder.IP < (ulong)FileOffsetToRva(range.End))
+            {
+                decoder.Decode(out var instr);
+                if (instr.IsInvalid) break;
+                allInstrs.Add(instr);
+            }
+        }
+        _xrefManager.BuildXrefs(allInstrs);
+        LogMessage($"[Xref] Build complete: {allInstrs.Count} instructions analyzed.");
+    }
+
+    private void HandleFindParentFunction(long fileOffset)
+    {
+        uint rva = FileOffsetToRva(fileOffset);
+        if (rva == 0) return;
+
+        var discoverer = new FunctionDiscoverer();
+        var parent = discoverer.GetParentFunction(_allFunctions, rva != 0 ? rva : fileOffset); 
+        
+        if (parent == null)
+            parent = _allFunctions.FirstOrDefault(f => fileOffset >= f.FileOffset && fileOffset < f.EndRva);
+
+        if (parent != null)
+        {
+            LogMessage($"[Decomp] Parent function found: {parent.Name} at 0x{parent.FileOffset:X8}");
+            _decompDisasmView?.ScrollToOffset(parent.FileOffset);
+            AnalyzeFunction(parent.FileOffset, fileOffset);
+            if (!_textModeActive) ToggleDecompTextMode();
+        }
+        else
+        {
+            LogMessage("[Decomp] No parent function found for this address.");
+        }
+    }
+
+    private void HandleFindXrefs(long fileOffset)
+    {
+        uint rva = FileOffsetToRva(fileOffset);
+        if (rva == 0) rva = (uint)fileOffset; 
+
+        var sources = _xrefManager.GetXrefs(rva);
+        if (sources.Count == 0)
+        {
+            LogMessage($"[Xref] No references found for 0x{rva:X8}");
+            return;
+        }
+
+        var menu = new ContextMenu();
+        foreach (var srcRva in sources)
+        {
+            long srcOff = RvaToFileOffset(srcRva);
+            if (srcOff == -1) continue;
+
+            var mi = new MenuItem { Header = $"0x{srcRva:X8} (Offset: 0x{srcOff:X8})" };
+            mi.Click += (s, e) => {
+                _decompDisasmView?.ScrollToOffset(srcOff);
+                LogMessage($"[Xref] Jumped to reference at 0x{srcRva:X8}");
+            };
+            menu.Items.Add(mi);
+        }
+        menu.IsOpen = true;
+    }
+
+    private long RvaToFileOffset(long rva)
+    {
+        if (_decompDisasmView == null) return -1;
+        
+        var sections = _decompDisasmView.PeSections;
+        foreach (var sec in sections)
+        {
+            if (rva >= sec.VirtualAddress && rva < (long)sec.VirtualAddress + sec.Size)
+            {
+                return (long)(rva - sec.VirtualAddress + sec.FileOffset);
+            }
+        }
+        return rva; 
+    }
+
+    private void FindAndJumpToXrefs(ImportEntry import)
+    {
+        if (_executableRanges == null || _executableRanges.Length == 0) return;
+
+        var xrefs = new List<long>();
+        uint importRva = (uint)import.IatAddress;
+
+        unsafe
+        {
+            var mmf = HexView.GetMemoryMappedFile();
+            if (mmf == null) return;
+
+            using var acc = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+            byte* ptr = null;
+            acc.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+            
+            try
+            {
+                uint imageBase32 = 0;
+                if (_peBitness == 32)
+                {
+                    int e_lfanew = *(int*)(ptr + 0x3C);
+                    if (*(ushort*)(ptr + e_lfanew + 24) == 0x10B)
+                        imageBase32 = *(uint*)(ptr + e_lfanew + 52);
+                }
+
+                foreach (var range in _executableRanges)
+                {
+                    for (long i = range.Start + 2; i < range.End - 4; i++)
+                    {
+                        uint currentRva = FileOffsetToRva(i);
+                        if (currentRva == 0) continue; 
+                        
+                        bool isMatch = false;
+                        int actualDisplacement = *(int*)(ptr + i);
+
+                        if (_peBitness == 64)
+                        {
+                            int expectedDisplacement = (int)((long)importRva - (long)currentRva - 4);
+                            if (expectedDisplacement == actualDisplacement) isMatch = true;
+                        }
+                        else
+                        {
+                            uint expectedAbsolute = imageBase32 + importRva;
+                            if (expectedAbsolute == (uint)actualDisplacement) isMatch = true;
+                        }
+
+                        if (isMatch)
+                        {
+                            byte b1 = ptr[i - 2];
+                            byte b2 = ptr[i - 1];
+                            
+                            LogMessage($"[XREF] Found in {range.Name} at file offset {i-2:X}! Opcode: {b1:X2} {b2:X2}");
+                            xrefs.Add(i - 2); 
+                        }
+                    }
+                }
+            }
+            finally { acc.SafeMemoryMappedViewHandle.ReleasePointer(); }
+        }
+
+        if (xrefs.Count > 1)
+        {
+            var menu = new ContextMenu();
+            foreach (var xref in xrefs)
+            {
+                var mi = new MenuItem { Header = $"Jump to 0x{xref:X8}" };
+                mi.Click += (s, e) => JumpToXref(xref, import.Name);
+                menu.Items.Add(mi);
+            }
+            menu.IsOpen = true;
+        }
+        else if (xrefs.Count == 1)
+        {
+            JumpToXref(xrefs[0], import.Name);
+        }
+        else
+        {
+            LogMessage($"[Decomp] No code references found for {import.Name}.");
+        }
+    }
+    
+    private unsafe long FindPrologueBackwards(long offset)
+    {
+        var mmf = HexView.GetMemoryMappedFile();
+        if (mmf == null) return -1;
+
+        using var acc = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+        byte* ptr = null;
+        acc.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+        try
+        {
+            long startLimit = Math.Max(0, offset - 0x1000);
+            
+            for (long i = offset; i > startLimit; i--)
+            {
+                if (ptr[i - 1] == 0xCC && ptr[i] != 0xCC && ptr[i] != 0x00)
+                {
+                    return i;
+                }
+
+                if (ptr[i] == 0x48 && ptr[i + 1] == 0x89 && ptr[i + 2] == 0x5C && ptr[i + 3] == 0x24) return i;
+                
+                if (ptr[i] == 0x40 && ptr[i + 1] == 0x53 && ptr[i + 2] == 0x48 && ptr[i + 3] == 0x83 && ptr[i + 4] == 0xEC) return i;
+                
+                if (ptr[i] == 0x48 && ptr[i + 1] == 0x83 && ptr[i + 2] == 0xEC) return i;
+            }
+        }
+        finally { acc.SafeMemoryMappedViewHandle.ReleasePointer(); }
+
+        return -1; 
+    }
+
+
+    private void JumpToXref(long address, string importName)
+    {
+        LogMessage($"[Decomp] Jumping to Xref at 0x{address:X8} for {importName}...");
+
+        _decompDisasmView?.ScrollToOffset(address);
+
+        long parentAddr = -1;
+        if (_functionListView != null)
+        {
+            var items = _functionListView.Items.Cast<FunctionItem>().OrderBy(x => x.Address).ToList();
+            for (int i = 0; i < items.Count; i++)
+            {
+                long start = items[i].Address;
+                
+                long maxEnd = start + 0x8000; 
+                long nextStart = (i + 1 < items.Count) ? items[i + 1].Address : HexView.FileLength;
+                
+                long end = Math.Min(maxEnd, nextStart);
+                
+                if (address >= start && address < end)
+                {
+                    parentAddr = start;
+                    break;
+                }
+            }
+        }
+
+        if (parentAddr != -1)
+        {
+            LogMessage($"[Decomp] Smart Jump: Found {importName} at 0x{address:X8} in sub_{parentAddr:X}.");
+            AnalyzeFunction(parentAddr, address);
+            SwitchSidePanel(false);
+            if (!_textModeActive) ToggleDecompTextMode();
+        }
+        else
+        {
+            LogMessage($"[Decomp] Function not in list. Scanning backwards for prologue from 0x{address:X8}...");
+            
+           
+            long hiddenFunctionStart = FindPrologueBackwards(address);
+            
+            if (hiddenFunctionStart != -1)
+            {
+                LogMessage($"[Decomp] Found hidden function start at 0x{hiddenFunctionStart:X8}!");
+                AnalyzeFunction(hiddenFunctionStart, address);
+                SwitchSidePanel(false);
+                if (!_textModeActive) ToggleDecompTextMode();
+            }
+            else
+            {
+                LogMessage($"[Decomp] Could not find prologue. Showing raw disassembly.");
+                _decompDisasmView?.ScrollToOffset(address);
+                SwitchSidePanel(false);
+              
+                if (_textModeActive) ToggleDecompTextMode(); 
+            }
+        }
+    }
+
+    public class FunctionItem
+    {
+        public string Name { get; set; } = "";
+        public long Address { get; set; }
+        public string Type { get; set; } = "Normal";
+        public string AddressHex => $"0x{Address:X8}";
     }
 
     private Border BuildDecompToolbar()
@@ -271,7 +850,7 @@ public partial class MainWindow
 
                 _pseudocodeGen.AiFunctionSummary = response.Trim();
                 
-                AnalyzeFunction(_currentFunctionOffset);
+                RefreshDecompiledOutput();
                 LogMessage("[Decomp] AI Function summary generated.");
                 rejectAiBtn.Visibility = Visibility.Visible;
             }
@@ -341,7 +920,8 @@ public partial class MainWindow
                     blocks, 
                     _pseudocodeGen.ResolvedImports, 
                     _pseudocodeGen.ResolvedStrings,
-                    _pseudocodeGen.Pipeline?.LastSignature);
+                    _pseudocodeGen.Pipeline?.LastSignature,
+                    _pseudocodeGen.UserRenames);
 
                
                 using var client = new AiClient();
@@ -362,11 +942,13 @@ public partial class MainWindow
 
                 foreach (var kv in newRenames)
                 {
-                    _pseudocodeGen.ApplyRename(kv.Key, kv.Value, isAiGenerated: true);
+                    string oldName = kv.Key.Replace(" /* AI */", "").Trim();
+                    string newName = kv.Value.Replace(" /* AI */", "").Trim();
+                    _pseudocodeGen.ApplyRename(oldName, newName, isAiGenerated: true);
                 }
 
               
-                AnalyzeFunction(_currentFunctionOffset);
+                RefreshDecompiledOutput();
                 LogMessage($"[Decomp] AI Refactoring complete: {newRenames.Count} variables renamed.");
                 rejectAiBtn.Visibility = Visibility.Visible;
                 jumpAiBtn.Visibility = Visibility.Visible;
@@ -426,7 +1008,7 @@ public partial class MainWindow
 
     
 
-    private void AnalyzeFunction(long fileOffset)
+    private void AnalyzeFunction(long fileOffset, long targetXref = -1)
     {
         _currentFunctionOffset = fileOffset;
         if (_decompGraphView == null || HexView.FileLength == 0) return;
@@ -451,10 +1033,11 @@ public partial class MainWindow
                     if (maxLen <= 0) return;
 
                     var result = _decompEngine.BuildFunctionGraph(
-                        ptr + fileOffset, maxLen, fileOffset, 64, _pseudocodeGen, ptr, HexView.FileLength);
+                        ptr + fileOffset, maxLen, fileOffset, _peBitness, _pseudocodeGen, ptr, HexView.FileLength, _executableRanges);
 
                     Dispatcher.Invoke(() =>
                     {
+
                         _decompGraphView.SetGraphData(result);
                         _decompTextView?.SetGraphData(result);
                         LogMessage($"[Decomp] Graph: {result.Nodes.Length} blocks, {result.Edges.Length} edges.");
@@ -510,19 +1093,28 @@ public partial class MainWindow
                     long ptrRawData = secNode.Offset ?? 0;
                     long secSize = secNode.Size ?? 0;
                     uint virtualAddr = 0;
+                    uint characteristics = 0;
+                    uint virtualSize = 0;
                     foreach (var field in secNode.Children)
                     {
                         if (field.Name == "VirtualAddress" && field.Value != null)
                         {
                             try { virtualAddr = Convert.ToUInt32(field.Value); } catch { }
-                            break;
+                        }
+                        else if (field.Name == "VirtualSize" && field.Value != null)
+                        {
+                            try { virtualSize = Convert.ToUInt32(field.Value); } catch { }
+                        }
+                        else if (field.Name == "Characteristics" && field.Value != null)
+                        {
+                            try { characteristics = Convert.ToUInt32(field.Value); } catch { }
                         }
                     }
                     if (ptrRawData < 0 || ptrRawData >= HexView.FileLength) ptrRawData = 0;
                     if (secCount < secList.Length)
                     {
                         secList[secCount] = new PeSectionInfo(
-                            secNode.Name, ptrRawData, secSize, virtualAddr);
+                            secNode.Name, ptrRawData, virtualSize > 0 ? virtualSize : (uint)secSize, virtualAddr, characteristics);
                         secCount++;
                     }
                 }
@@ -536,12 +1128,75 @@ public partial class MainWindow
                     if (field.Name == "AddressOfEntryPoint" && field.Value != null)
                     {
                         uint epRva = Convert.ToUInt32(field.Value);
-                        entryPointFileOffset = RvaToFileOffset(epRva, secList, secCount);
+                        entryPointFileOffset = RvaToFileOffset(epRva);
                         break;
                     }
                 }
             }
 
+            var execRanges = new List<ExecutableRange>();
+            for (int i = 0; i < secCount; i++)
+            {
+                var s = secList[i];
+                if ((s.Characteristics & 0x20000000) != 0 || 
+                    (s.Characteristics & 0x00000020) != 0 ||
+                    s.Name.Contains(".text", StringComparison.OrdinalIgnoreCase))
+                {
+                    execRanges.Add(new ExecutableRange { Start = s.FileOffset, End = s.FileOffset + s.Size, Name = s.Name });
+                }
+            }
+            _executableRanges = execRanges.ToArray();
+
+            uint importRva = 0;
+            optHeader = root.FindByPath("NT Headers", "Optional Header");
+            if (optHeader != null)
+            {
+                var dataDirs = optHeader.Children.FirstOrDefault(c => c.Name == "Data Directories");
+                if (dataDirs != null)
+                {
+                    var importDir = dataDirs.Children.ElementAtOrDefault(1);
+                    if (importDir != null)
+                    {
+                        var rvaField = importDir.Children.FirstOrDefault(f => f.Name == "RVA") 
+                                     ?? importDir.Children.FirstOrDefault(f => f.Name == "VirtualAddress");
+                        if (rvaField?.Value != null) importRva = Convert.ToUInt32(rvaField.Value);
+                    }
+                }
+            }
+
+            unsafe
+            {
+                var mmf = HexView.GetMemoryMappedFile();
+                if (mmf != null)
+                {
+                    using var acc = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+                    byte* ptr = null;
+                    acc.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+                    try
+                    {
+                        int e_lfanew = *(int*)(ptr + 0x3C);
+                        
+                        ushort magic = *(ushort*)(ptr + e_lfanew + 24);
+                        _peBitness = (magic == 0x10B) ? 32 : 64;
+
+                        int dataDirOffset = e_lfanew + 24 + (_peBitness == 32 ? 96 : 112);
+                        int importDirOffset = dataDirOffset + 8; 
+                        importRva = *(uint*)(ptr + importDirOffset);
+
+                        if (importRva != 0)
+                        {
+                            var scanner = new PeImportScanner();
+                            _importedDlls = scanner.Scan(ptr, HexView.FileLength, secList, secCount, importRva, _peBitness);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogMessage($"[Decomp] Native Header parsing crashed: {ex.Message}");
+                    }
+                    finally { acc.SafeMemoryMappedViewHandle.ReleasePointer(); }
+                }
+            }
+            PopulateImportTreeView();
             view.SetPeInfo(entryPointFileOffset, secList, secCount);
         }
         catch (Exception ex)
@@ -549,13 +1204,44 @@ public partial class MainWindow
             LogMessage($"[Decomp] PE info extraction failed: {ex.Message}");
         }
     }
-    
+       
     private void DecompDock_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == System.Windows.Input.Key.F5)
         {
             ToggleDecompTextMode();
             e.Handled = true;
+        }
+        else if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+        {
+            if (e.SystemKey == Key.E)
+            {
+                SwitchSidePanel(true);
+                e.Handled = true;
+            }
+            else if (e.SystemKey == Key.R)
+            {
+                SwitchSidePanel(false);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void SwitchSidePanel(bool showImports)
+    {
+        if (_sidePanelContent == null || _functionListView == null || _importTreeView == null) return;
+        
+        _sidePanelContent.Children.Clear();
+        if (showImports)
+        {
+            PopulateImportTreeView();
+            _sidePanelContent.Children.Add(_importTreeView);
+            LogMessage("[Decomp] Side Panel: Switched to Imports (IAT).");
+        }
+        else
+        {
+            _sidePanelContent.Children.Add(_functionListView);
+            LogMessage("[Decomp] Side Panel: Switched to Functions (.text).");
         }
     }
 
@@ -618,5 +1304,11 @@ public partial class MainWindow
         }
 
         TryAutoAnalyzeEntryPoint();
+        PopulateFunctionList();
+    }
+    private void RefreshDecompiledOutput()
+    {
+        _decompTextView?.RefreshView();
+        _decompGraphView?.RefreshView();
     }
 }

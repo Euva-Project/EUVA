@@ -20,4 +20,17 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="DefenceTechSecurity.Yarax" Version="1.0.1-release.yrx1.12.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Scripts\**\*">
+      <Link>Scripts\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    
+   <Content Include="..\Signatures\**\*">
+      <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

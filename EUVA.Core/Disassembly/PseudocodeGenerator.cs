@@ -16,6 +16,7 @@ public sealed class PseudocodeGenerator
     private Dictionary<string, HashSet<ulong>>? _globalStructs;
     private string _currentFuncName = "sub_0";
     public string? AiFunctionSummary { get; set; }
+    private Func<ulong, string>? _stringExtractor;
 
     
     private DecompilationPipeline? _pipeline;
@@ -61,6 +62,12 @@ public sealed class PseudocodeGenerator
         _pipeline = null;
     }
 
+    public void SetStringExtractor(Func<ulong, string> extractor)
+    {
+        _stringExtractor = extractor;
+        _pipeline = null;
+    }
+
     
     public IReadOnlyDictionary<string, VariableSymbol>? UserRenames => _globalRenames;
 
@@ -71,7 +78,7 @@ public sealed class PseudocodeGenerator
         _globalRenames ??= new();
         var sym = new VariableSymbol(oldName, newName, isAiGenerated);
         _globalRenames[oldName] = sym;
-        _pipeline = null;
+        _pipeline?.UpdateUserRenames(_globalRenames);
         RenameApplied?.Invoke(this, sym);
     }
 
@@ -104,9 +111,16 @@ public sealed class PseudocodeGenerator
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public unsafe PseudocodeLine[] DecompileFunction(BasicBlock[] blocks,
+    public unsafe PseudocodeLine[] DecompileFunction(BasicBlock[]? blocks,
         byte* fileData, long fileLength, long baseAddress)
     {
+        if (_pipeline != null && _pipeline.LastStructuredAst != null)
+        {
+            return _pipeline.ReEmit(_currentFuncName, AiFunctionSummary);
+        }
+
+        if (blocks == null) return Array.Empty<PseudocodeLine>();
+
         EnsurePipeline();
         return _pipeline!.DecompileFunction(blocks, fileData, fileLength, baseAddress, _currentFuncName, AiFunctionSummary);
     }
@@ -129,7 +143,9 @@ public sealed class PseudocodeGenerator
     }
 
     
+    
     private readonly Dictionary<(int, int), string> _userComments = new();
+    private readonly Dictionary<long, string> _addrComments = new();
 
     public string? GetUserComment(int blockIdx, int lineIdx)
     {
@@ -137,10 +153,25 @@ public sealed class PseudocodeGenerator
         return c;
     }
 
+    public string? GetCommentByAddress(long addr)
+    {
+        _addrComments.TryGetValue(addr, out var c);
+        return c;
+    }
+
     public void SetUserComment(int blockIdx, int lineIdx, string? comment)
     {
         if (comment == null) _userComments.Remove((blockIdx, lineIdx));
         else _userComments[(blockIdx, lineIdx)] = comment;
+    }
+
+    public void SetCommentByAddress(long addr, string? comment)
+    {
+        if (comment == null) _addrComments.Remove(addr);
+        else _addrComments[addr] = comment;
+        
+        if (_pipeline != null)
+            _pipeline.UserComments[addr] = comment ?? "";
     }
 
     
@@ -164,7 +195,7 @@ public sealed class PseudocodeGenerator
             if (st.Name.Contains("RCX") && st.Fields.Count >= 2)
             {
                 var fields = new HashSet<ulong>();
-                foreach (var kv in st.Fields) fields.Add((ulong)kv.Key);
+                foreach (var kv in st.Fields) fields.Add((ulong)(long)kv.Key);
                 return new ClassContext
                 {
                     Confidence = Math.Min(1.0, st.AccessCount * 0.15),
@@ -181,7 +212,10 @@ public sealed class PseudocodeGenerator
         if (_pipeline == null)
         {
             _pipeline = new DecompilationPipeline(
-                _bitness, _imports, _strings, _globalRenames);
+                _bitness, _imports, _strings, _globalRenames, _stringExtractor);
+            
+            foreach (var kv in _addrComments)
+                _pipeline.UserComments[kv.Key] = kv.Value;
         }
     }
 }

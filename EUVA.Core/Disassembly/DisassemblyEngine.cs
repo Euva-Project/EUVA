@@ -271,6 +271,42 @@ public sealed class DisassemblyEngine
         return bestSync;
     }
 
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    public unsafe void FindInstructionEnclosing(byte* data, int dataLength, long baseOffset, long startSync, long targetOffset, out long foundOffset, out int foundLen)
+    {
+        foundOffset = targetOffset;
+        foundLen = 1;
+
+        if (startSync < baseOffset || startSync > targetOffset) startSync = targetOffset;
+
+        _codeReader.Reset(data + (startSync - baseOffset), (int)(baseOffset + dataLength - startSync));
+        var decoder = Decoder.Create(_bitness, _codeReader, (ulong)startSync);
+        Instruction instr = default;
+
+        while (decoder.IP <= (ulong)targetOffset)
+        {
+            decoder.Decode(out instr);
+            if (instr.IsInvalid)
+            {
+                if ((long)decoder.IP > targetOffset)
+                {
+                    foundOffset = (long)decoder.IP - 1;
+                    foundLen = 1;
+                    return;
+                }
+                continue;
+            }
+
+            if ((long)instr.IP <= targetOffset && targetOffset < (long)instr.IP + instr.Length)
+            {
+                foundOffset = (long)instr.IP;
+                foundLen = instr.Length;
+                return;
+            }
+        }
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static char HexChar(int nibble)
         => (char)(nibble < 10 ? '0' + nibble : 'A' + nibble - 10);

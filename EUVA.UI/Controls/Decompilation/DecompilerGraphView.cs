@@ -184,7 +184,15 @@ public sealed class DecompilerGraphView : FrameworkElement, IDisposable
         Redraw();
     }
 
-    public void RefreshView() => Redraw();
+    public void RefreshView()
+    {
+        if (_layout != null)
+        {
+            for (int i = 0; i < _layout.Nodes.Length; i++)
+                _layout.Nodes[i].PseudocodeLines = null;
+        }
+        Redraw();
+    }
 
     private void AutoFit()
     {

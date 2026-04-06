@@ -24,6 +24,7 @@ public static class CallingConventionAnalyzer
         public TypeInfo Type;
         public Register SourceRegister;
         public int StackOffset; 
+        public IrOperand? SourceOperand;
 
         public FunctionArg(int index, string name, Register reg)
         {
@@ -106,48 +107,175 @@ public static class CallingConventionAnalyzer
         return sig;
     }
 
-    public static FunctionArg[] RecoverCallArguments(IrBlock block, int callInstrIndex)
+    public static FunctionArg[] RecoverCallArguments(IrBlock[] blocks, int blockIdx, int callInstrIndex, int bitness)
     {
         var args = new List<FunctionArg>();
-        var found = new HashSet<Register>();
-
         
-        for (int i = callInstrIndex - 1; i >= 0 && found.Count < 4; i--)
+        var instr = blocks[blockIdx].Instructions[callInstrIndex];
+        bool isIat = instr.Sources.Length > 0 && instr.Sources[0].Kind == IrOperandKind.Memory && instr.Sources[0].MemDisplacement != 0 && instr.Sources[0].MemBase == Register.None;
+
+        if (bitness == 64)
         {
-            var instr = block.Instructions[i];
-            if (instr.IsDead) continue;
-
-            
-            if (instr.Opcode == IrOpcode.Call) break;
-
-            if (instr.DefinesDest && instr.Destination.Kind == IrOperandKind.Register)
+            if (isIat)
             {
-                var canonical = IrOperand.GetCanonical(instr.Destination.Register);
-                if (IsArgRegister(canonical) && !found.Contains(canonical))
+                var def = FindLastDefinition(blocks, blockIdx, callInstrIndex, Register.RCX);
+                if (def == null) def = FindLastDefinition(blocks, blockIdx, callInstrIndex, Register.ECX);
+
+                var arg = new FunctionArg(0, "a1", Register.RCX);
+                if (def != null)
                 {
-                    found.Add(canonical);
-                    int argIdx = GetArgIndex(canonical);
-                    if (argIdx >= 0)
+                    if (def.Sources.Length > 0)
                     {
-                        var arg = new FunctionArg(argIdx, $"a{argIdx + 1}", canonical);
-
-                        if (instr.Sources.Length > 0)
-                        {
-                            var src = instr.Sources[0];
-                            if (src.Kind == IrOperandKind.Constant)
-                                arg.Type = new TypeInfo { BaseType = PrimitiveType.UInt64 };
-                            else if (src.Type != TypeInfo.Unknown)
-                                arg.Type = src.Type;
-                        }
-
-                        args.Add(arg);
+                        var src = def.Sources[0];
+                        arg.SourceOperand = src;
+                        arg.Type = src.Type != TypeInfo.Unknown ? src.Type : (src.Kind == IrOperandKind.Constant ? new TypeInfo { BaseType = PrimitiveType.UInt64 } : TypeInfo.Unknown);
                     }
+                    def.IsDead = true;
                 }
+                else
+                {
+                    arg.SourceOperand = IrOperand.Reg(Register.RCX, 64);
+                    arg.Type = new TypeInfo { BaseType = PrimitiveType.UInt64 };
+                }
+                args.Add(arg);
+            }
+
+            foreach (var reg in ArgRegs)
+            {
+                if (isIat && reg == Register.RCX) continue;
+
+                var def = FindLastDefinition(blocks, blockIdx, callInstrIndex, reg);
+                if (def != null)
+                {
+                    int argIdx = GetArgIndex(reg);
+                    var arg = new FunctionArg(argIdx, $"a{argIdx + 1}", reg);
+                    if (def.Sources.Length > 0)
+                    {
+                        var src = def.Sources[0];
+                        arg.SourceOperand = src;
+                        arg.Type = src.Type != TypeInfo.Unknown ? src.Type : (src.Kind == IrOperandKind.Constant ? new TypeInfo { BaseType = PrimitiveType.UInt64 } : TypeInfo.Unknown);
+                    }
+                    args.Add(arg);
+                    def.IsDead = true; 
+                }
+            }
+        }
+
+        int step = bitness == 64 ? 8 : 4;
+        int maxOffset = 128;
+
+        for (int offset = 0; offset < maxOffset; offset += step) 
+        {
+            var def = FindLastStackDefinition(blocks, blockIdx, callInstrIndex, offset);
+            if (def != null)
+            {
+                int argIdx = (bitness == 64) 
+                    ? (offset < 32 ? (offset / 8) : (4 + (offset - 32) / 8))
+                    : (offset / 4);
+
+                var existing = args.FirstOrDefault(a => a.Index == argIdx);
+                if (existing != null)
+                {
+                    if (existing.SourceOperand != null && 
+                        existing.SourceOperand.Value.SameLocation(def.Sources[0]))
+                        continue;
+                    
+                    argIdx = args.Max(a => a.Index) + 1;
+                }
+
+                var arg = new FunctionArg(argIdx, $"a{argIdx + 1}", Register.None) { StackOffset = offset };
+                if (def.Sources.Length > 0)
+                {
+                    var src = def.Sources[0];
+                    arg.SourceOperand = src;
+                    arg.Type = src.Type != TypeInfo.Unknown ? src.Type : (src.Kind == IrOperandKind.Constant ? new TypeInfo { BaseType = (bitness == 64 ? PrimitiveType.UInt64 : PrimitiveType.UInt32) } : TypeInfo.Unknown);
+                }
+                args.Add(arg);
+                def.IsDead = true; 
             }
         }
 
         args.Sort((a, b) => a.Index.CompareTo(b.Index));
         return args.ToArray();
+    }
+
+    private static IrInstruction? FindLastDefinition(IrBlock[] blocks, int blockIdx, int instrIdx, Register reg)
+    {
+        var visited = new HashSet<int>();
+        var queue = new Queue<(int BlockIdx, int InstrIdx)>();
+        queue.Enqueue((blockIdx, instrIdx - 1));
+
+        while (queue.Count > 0)
+        {
+            var (currIdx, startInstr) = queue.Dequeue();
+            if (currIdx < 0 || !visited.Add(currIdx)) continue;
+
+            var block = blocks[currIdx];
+            for (int i = startInstr; i >= 0; i--)
+            {
+                var instr = block.Instructions[i];
+                if (instr.IsDead) continue;
+
+                if (instr.DefinesDest && instr.Destination.Kind == IrOperandKind.Register &&
+                    IrOperand.GetCanonical(instr.Destination.Register) == reg)
+                {
+                    return instr;
+                }
+            }
+
+            foreach (var pred in block.Predecessors)
+            {
+                queue.Enqueue((pred, blocks[pred].Instructions.Count - 1));
+            }
+        }
+
+        return null;
+    }
+
+    private static IrInstruction? FindLastStackDefinition(IrBlock[] blocks, int blockIdx, int instrIdx, int offset)
+    {
+        var visited = new HashSet<(int, int)>();
+        var queue = new Queue<(int BlockIdx, int InstrIdx, int Delta)>();
+        queue.Enqueue((blockIdx, instrIdx - 1, 0));
+
+        while (queue.Count > 0)
+        {
+            var (currIdx, startInstr, delta) = queue.Dequeue();
+            if (currIdx < 0 || !visited.Add((currIdx, delta))) continue;
+
+            var block = blocks[currIdx];
+            for (int i = startInstr; i >= 0; i--)
+            {
+                var instr = block.Instructions[i];
+                if (instr.IsDead) continue;
+
+                if (instr.DefinesDest && instr.Destination.Kind == IrOperandKind.Register &&
+                    IrOperand.GetCanonical(instr.Destination.Register) == Register.RSP)
+                {
+                    if (instr.Opcode == IrOpcode.Sub && instr.Sources.Length == 2 && instr.Sources[1].Kind == IrOperandKind.Constant)
+                        delta -= (int)instr.Sources[1].ConstantValue;
+                    else if (instr.Opcode == IrOpcode.Add && instr.Sources.Length == 2 && instr.Sources[1].Kind == IrOperandKind.Constant)
+                        delta += (int)instr.Sources[1].ConstantValue;
+                }
+
+                if (instr.Opcode == IrOpcode.Store && instr.Destination.Kind == IrOperandKind.Memory)
+                {
+                    var baseReg = IrOperand.GetCanonical(instr.Destination.MemBase);
+                    var disp = instr.Destination.MemDisplacement;
+                    if (baseReg == Register.RSP && disp == (offset + delta))
+                    {
+                        return instr;
+                    }
+                }
+            }
+
+            foreach (var pred in block.Predecessors)
+            {
+                queue.Enqueue((pred, blocks[pred].Instructions.Count - 1, delta));
+            }
+        }
+
+        return null;
     }
 
     private static bool DetectReturnValue(IrBlock[] blocks)

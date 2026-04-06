@@ -4,11 +4,8 @@ using Iced.Intel;
 
 namespace EUVA.Core.Disassembly.Analysis;
 
-
 public static class SsaBuilder
 {
-    
-    
     
     public static void Build(IrBlock[] blocks)
     {
@@ -36,20 +33,62 @@ public static class SsaBuilder
 
             foreach (var instr in block.Instructions)
             {
-                
+                if (instr.IsDead) continue;
+
+                if (instr.Opcode == IrOpcode.Call && instr.Destination.Register == Register.None)
+                {
+                    instr.Destination = IrOperand.Reg(Register.RAX, 64);
+                }
+
                 foreach (ref var src in instr.Sources.AsSpan())
                 {
-                    string? key = GetVarKey(in src);
-                    if (key != null && !block.Defs.Contains(key))
-                        block.Uses.Add(key);
+                    if (src.Kind == IrOperandKind.Memory)
+                    {
+                        if (src.MemBase != Register.None)
+                        {
+                            string key = $"r_{IrOperand.GetCanonical(src.MemBase)}";
+                            if (!block.Defs.Contains(key)) block.Uses.Add(key);
+                        }
+                        if (src.MemIndex != Register.None)
+                        {
+                            string key = $"r_{IrOperand.GetCanonical(src.MemIndex)}";
+                            if (!block.Defs.Contains(key)) block.Uses.Add(key);
+                        }
+                    }
+                    else
+                    {
+                        string? key = GetVarKey(in src);
+                        if (key != null && !block.Defs.Contains(key))
+                            block.Uses.Add(key);
+                    }
                 }
 
                 
                 if (instr.DefinesDest)
                 {
-                    string? key = GetVarKey(in instr.Destination);
-                    if (key != null)
-                        block.Defs.Add(key);
+                    if (instr.Destination.Kind == IrOperandKind.Memory)
+                    {
+                        if (instr.Destination.MemBase != Register.None)
+                        {
+                            string key = $"r_{IrOperand.GetCanonical(instr.Destination.MemBase)}";
+                            if (!block.Defs.Contains(key)) block.Uses.Add(key);
+                        }
+                        if (instr.Destination.MemIndex != Register.None)
+                        {
+                            string key = $"r_{IrOperand.GetCanonical(instr.Destination.MemIndex)}";
+                            if (!block.Defs.Contains(key)) block.Uses.Add(key);
+                        }
+                    }
+                    else
+                    {
+                        string? key = GetVarKey(in instr.Destination);
+                        if (key != null)
+                            block.Defs.Add(key);
+                    }
+                }
+                else if (instr.Opcode == IrOpcode.Call)
+                {
+                    block.Defs.Add("r_RAX");
                 }
             }
         }
@@ -122,7 +161,7 @@ public static class SsaBuilder
                 if (instr.DefinesDest || instr.Opcode == IrOpcode.Phi)
                 {
                     string? key = GetVarKey(in instr.Destination);
-                    if (key != null && !counter.ContainsKey(key))
+                    if (key != null && !counter.TryGetValue(key, out _))
                     {
                         counter[key] = 0;
                         stack[key] = new Stack<int>();
@@ -130,14 +169,30 @@ public static class SsaBuilder
                     }
                 }
 
-                foreach (ref var src in instr.Sources.AsSpan())
+                foreach (var src in instr.Sources)
                 {
-                    string? key = GetVarKey(in src);
-                    if (key != null && !counter.ContainsKey(key))
+                    if (src.Kind == IrOperandKind.Memory)
                     {
-                        counter[key] = 0;
-                        stack[key] = new Stack<int>();
-                        stack[key].Push(0);
+                        if (src.MemBase != Register.None)
+                        {
+                            string key = $"r_{IrOperand.GetCanonical(src.MemBase)}";
+                            if (!counter.TryGetValue(key, out _)) { counter[key] = 0; stack[key] = new Stack<int>(); stack[key].Push(0); }
+                        }
+                        if (src.MemIndex != Register.None)
+                        {
+                            string key = $"r_{IrOperand.GetCanonical(src.MemIndex)}";
+                            if (!counter.TryGetValue(key, out _)) { counter[key] = 0; stack[key] = new Stack<int>(); stack[key].Push(0); }
+                        }
+                    }
+                    else
+                    {
+                        string? key = GetVarKey(in src);
+                        if (key != null && !counter.TryGetValue(key, out _))
+                        {
+                            counter[key] = 0;
+                            stack[key] = new Stack<int>();
+                            stack[key].Push(0);
+                        }
                     }
                 }
             }
@@ -159,24 +214,64 @@ public static class SsaBuilder
             {
                 for (int i = 0; i < instr.Sources.Length; i++)
                 {
-                    string? key = GetVarKey(in instr.Sources[i]);
-                    if (key != null && stack.TryGetValue(key, out var s) && s.Count > 0)
+                    if (instr.Sources[i].Kind == IrOperandKind.Memory)
                     {
-                        instr.Sources[i].SsaVersion = s.Peek();
+                        var op = instr.Sources[i];
+                        if (op.MemBase != Register.None)
+                        {
+                            string key = $"r_{IrOperand.GetCanonical(op.MemBase)}";
+                            if (stack.TryGetValue(key, out var s) && s.Count > 0)
+                                op.MemBaseSsaVersion = s.Peek();
+                        }
+                        if (op.MemIndex != Register.None)
+                        {
+                            string key = $"r_{IrOperand.GetCanonical(op.MemIndex)}";
+                            if (stack.TryGetValue(key, out var s) && s.Count > 0)
+                                op.MemIndexSsaVersion = s.Peek();
+                        }
+                        instr.Sources[i] = op;
+                    }
+                    else
+                    {
+                        string? key = GetVarKey(in instr.Sources[i]);
+                        if (key != null && stack.TryGetValue(key, out var s) && s.Count > 0)
+                        {
+                            instr.Sources[i].SsaVersion = s.Peek();
+                        }
                     }
                 }
             }
 
             if (instr.DefinesDest || instr.Opcode == IrOpcode.Phi)
             {
-                string? key = GetVarKey(in instr.Destination);
-                if (key != null && counter.ContainsKey(key))
+                if (instr.Destination.Kind == IrOperandKind.Memory)
                 {
-                    counter[key]++;
-                    int newVersion = counter[key];
-                    stack[key].Push(newVersion);
-                    instr.Destination.SsaVersion = newVersion;
-                    pushedVars.Add(key);
+                    var op = instr.Destination;
+                    if (op.MemBase != Register.None)
+                    {
+                        string key = $"r_{IrOperand.GetCanonical(op.MemBase)}";
+                        if (stack.TryGetValue(key, out var s) && s.Count > 0)
+                            op.MemBaseSsaVersion = s.Peek();
+                    }
+                    if (op.MemIndex != Register.None)
+                    {
+                        string key = $"r_{IrOperand.GetCanonical(op.MemIndex)}";
+                        if (stack.TryGetValue(key, out var s) && s.Count > 0)
+                            op.MemIndexSsaVersion = s.Peek();
+                    }
+                    instr.Destination = op;
+                }
+                else
+                {
+                    string? key = GetVarKey(in instr.Destination);
+                    if (key != null && counter.TryGetValue(key, out int currentVersion))
+                    {
+                        int newVersion = currentVersion + 1;
+                        counter[key] = newVersion;
+                        stack[key].Push(newVersion);
+                        instr.Destination.SsaVersion = newVersion;
+                        pushedVars.Add(key);
+                    }
                 }
             }
         }

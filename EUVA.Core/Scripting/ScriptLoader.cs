@@ -9,21 +9,21 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 
-namespace EUVA.Core.Scripting;
 
+namespace EUVA.Core.Scripting;
 
 public sealed class ScriptLoader
 {
     public static readonly ScriptLoader Instance = new();
+    public Action<string>? OnLogMessage { get; set; }
 
     private readonly List<ScriptRunner<IDecompilerPass>> _compiledRunners = new();
-    
     private readonly Dictionary<PassStage, List<IDecompilerPass>> _activePasses = new();
 
     public string ScriptsDirectory { get; }
 
     private ScriptLoader()
-    {
+    {   
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         ScriptsDirectory = Path.Combine(baseDir, "Scripts");
         
@@ -33,27 +33,27 @@ public sealed class ScriptLoader
         }
     }
 
-    public async Task InitializeAsync()
+   public async Task InitializeAsync()
     {
+        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [INIT] Glass Engine Initialization Started...");
+
         _compiledRunners.Clear();
-        foreach (var list in _activePasses.Values)
-            list.Clear();
+        foreach (var list in _activePasses.Values) list.Clear();
 
         if (!Directory.Exists(ScriptsDirectory))
         {
-            try
-            {
-                Directory.CreateDirectory(ScriptsDirectory);
-            }
-            catch
-            {
-                return;
-            }
+            try { Directory.CreateDirectory(ScriptsDirectory); }
+            catch { return; }
         }
 
         var scriptFiles = Directory.GetFiles(ScriptsDirectory, "*.cs", SearchOption.AllDirectories);
         if (scriptFiles.Length == 0)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [INIT] No scripts found. Engine is idle.");
             return;
+        }
+
+        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [INIT] Found {scriptFiles.Length} scripts. Compiling...");
 
         var options = ScriptOptions.Default
             .WithReferences(
@@ -68,7 +68,6 @@ public sealed class ScriptLoader
             try
             {
                 string code = await File.ReadAllTextAsync(file);
-                
                 var script = CSharpScript.Create<IDecompilerPass>(code, options);
                 script.Compile();
                 var runner = script.CreateDelegate();
@@ -76,29 +75,27 @@ public sealed class ScriptLoader
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ScriptLoader] Failed to compile script '{Path.GetFileName(file)}': {ex.Message}");
+                OnLogMessage?.Invoke($"[Glass Engine] Compile Error! File: {Path.GetFileName(file)}\n{ex.Message}\n");
             }
         }
+        
+        OnLogMessage?.Invoke($"[Glass Engine] Compilation phase finished.");
     }
 
     public async Task PrepareFunctionPassesAsync()
     {
-        foreach (var list in _activePasses.Values)
-            list.Clear();
+        foreach (var list in _activePasses.Values) list.Clear();
 
         foreach (var runner in _compiledRunners)
         {
             try
             {
                 var result = await runner.Invoke();
-                if (result != null)
-                {
-                    _activePasses[result.Stage].Add(result);
-                }
+                if (result != null) _activePasses[result.Stage].Add(result);
             }
             catch (Exception ex)
             {
-                 Console.WriteLine($"[ScriptLoader] Error instantiating pass: {ex.Message}");
+                 Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [PR ERROR] Failed to instantiate pass:\n{ex.Message}\n");
             }
         }
     }
@@ -116,7 +113,7 @@ public sealed class ScriptLoader
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ScriptLoader] Error executing pass '{pass.GetType().Name}': {ex.Message}");
+                OnLogMessage?.Invoke($"[Glass Engine] Func: 0x{context.FunctionAddress:X8} | Stage: {stage} | Pass: {pass.GetType().Name}\nException: {ex.Message}\n");
             }
         }
     }

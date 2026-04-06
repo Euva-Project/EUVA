@@ -88,6 +88,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
     private uint _cFunction, _cOperator, _cPunct, _cComment, _cAddress, _cError, _cSelectionBg;
 
     public event EventHandler? RenameApplied;
+    public event EventHandler<long>? LineClicked;
 
     public DecompilerTextView()
     {
@@ -149,7 +150,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         SetGraphDataAsync(layout);
     }
 
-    private void SetGraphDataAsync(LayoutResult? layout)
+    private unsafe void SetGraphDataAsync(LayoutResult? layout)
     {
         _layout = layout;
         long myVersion = System.Threading.Interlocked.Increment(ref _layoutVersion);
@@ -173,7 +174,8 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
             int[] blkIdx, locIdx;
             try
             {
-                FlattenToTextCore(layoutSnapshot, pseudoGenSnapshot, out flatLines, out blkIdx, out locIdx);
+                var latestText = pseudoGenSnapshot != null ? pseudoGenSnapshot.DecompileFunction(null, null, 0, 0) : layoutSnapshot.FullText;
+                FlattenToTextCore(layoutSnapshot, latestText, pseudoGenSnapshot, out flatLines, out blkIdx, out locIdx);
             }
             catch (Exception ex)
             {
@@ -206,6 +208,22 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         else Redraw();
     }
 
+    public void JumpToAddress(long address)
+    {
+        if (_flatLines == null || _flatLines.Length == 0) return;
+        for (int i = 0; i < _flatLines.Length; i++)
+        {
+            if (_flatLines[i].Address == address)
+            {
+                _cursorLine = i;
+                int visLines = Math.Max(1, _bmpH / CellH);
+                _scrollLine = Math.Max(0, i - visLines / 2);
+                Redraw();
+                return;
+            }
+        }
+    }
+
     public void JumpNextAiChange()
     {
         if (_flatLines == null || _flatLines.Length == 0) return;
@@ -235,6 +253,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
 
     private static void FlattenToTextCore(
         LayoutResult layout,
+        PseudocodeLine[]? fullText,
         PseudocodeGenerator? pseudoGen,
         out PseudocodeLine[] flatLines,
         out int[] lineBlockIndex,
@@ -292,9 +311,9 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         }
 
        
-        if (layout.FullText != null)
+        if (fullText != null)
         {
-            foreach (var line in layout.FullText)
+            foreach (var line in fullText)
             {
                 if (isClassMethod)
                 {
@@ -326,6 +345,21 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         for(int i = 0; i < flatLines.Length; i++) {
             lineBlockIndex[i] = 0;
             lineLocalIndex[i] = i;
+            
+            if (pseudoGen != null && flatLines[i].Address == -1) 
+            {
+                var c = pseudoGen.GetUserComment(0, i);
+                if (c != null && !flatLines[i].Text.Contains(" // "))
+                {
+                    int commentStart = flatLines[i].Text.Length;
+                    string commentText = " // " + c;
+                    flatLines[i].Text += commentText;
+                    
+                    var newSpans = new List<PseudocodeSpan>(flatLines[i].Spans ?? Array.Empty<PseudocodeSpan>());
+                    newSpans.Add(new PseudocodeSpan(commentStart, commentText.Length, PseudocodeSyntax.Comment));
+                    flatLines[i].Spans = newSpans.ToArray();
+                }
+            }
         }
     }
 
@@ -631,16 +665,66 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
             var pos = GetTextPosition(e.GetPosition(this));
             if (pos.Row >= 0 && pos.Row < _flatLines.Length)
             {
+                var line = _flatLines[pos.Row];
                 _cursorLine = pos.Row;
                 _selStart = pos;
                 _selEnd = pos;
                 _isSelecting = true;
                 CaptureMouse();
                 Redraw();
+
+                if (e.ClickCount == 1 && line.Address != -1)
+                {
+                    LineClicked?.Invoke(this, line.Address);
+                }
+                else if (e.ClickCount == 2)
+                {
+                    if (line.Spans != null)
+                    {
+                        foreach (var span in line.Spans)
+                        {
+                            if ((span.Kind == PseudocodeSyntax.Function || span.Kind == PseudocodeSyntax.Address) &&
+                                pos.Col >= span.Start && pos.Col < span.Start + span.Length)
+                            {
+                                string symbol = line.Text.Substring(span.Start, span.Length);
+                                HandleSymbolJump(symbol);
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
         e.Handled = true;
     }
+
+    private void HandleSymbolJump(string symbol)
+    {
+        if (symbol.StartsWith("sub_") && ulong.TryParse(symbol.Substring(4), System.Globalization.NumberStyles.HexNumber, null, out ulong addr))
+        {
+            JumpRequest?.Invoke(this, (long)addr);
+        }
+        else if (symbol.StartsWith("loc_") && ulong.TryParse(symbol.Substring(4), System.Globalization.NumberStyles.HexNumber, null, out ulong laddr))
+        {
+            JumpRequest?.Invoke(this, (long)laddr);
+        }
+        else if (symbol.StartsWith("block_") && int.TryParse(symbol.Substring(6), out int bidx))
+        {
+            
+            for (int i = 0; i < _flatLines.Length; i++)
+            {
+                if (_lineBlockIndex[i] == bidx && _lineLocalIndex[i] == 0)
+                {
+                    _cursorLine = i;
+                    _scrollLine = Math.Max(0, i - 5);
+                    Redraw();
+                    break;
+                }
+            }
+        }
+    }
+
+    public event EventHandler<long>? JumpRequest;
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
@@ -681,7 +765,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         {
             foreach (var span in line.Spans)
             {
-                if (span.Kind == PseudocodeSyntax.Variable && span.Start + span.Length <= line.Text.Length)
+                if ((span.Kind == PseudocodeSyntax.Variable || span.Kind == PseudocodeSyntax.VariableAi) && span.Start + span.Length <= line.Text.Length)
                 {
                     varName = line.Text.Substring(span.Start, span.Length).Trim();
                     break;
@@ -717,10 +801,12 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         if (_pseudoGen == null || _cursorLine < 0 || _cursorLine >= _flatLines.Length) return;
         if (_cursorLine >= _lineBlockIndex.Length || _cursorLine >= _lineLocalIndex.Length) return;
 
-        int blockIdx = _lineBlockIndex[_cursorLine], localIdx = _lineLocalIndex[_cursorLine];
-        if (localIdx < 0) return; 
+        var line = _flatLines[_cursorLine];
 
-        string? existing = _pseudoGen.GetUserComment(blockIdx, localIdx);
+        int blockIdx = _lineBlockIndex[_cursorLine], localIdx = _lineLocalIndex[_cursorLine];
+        long addr = line.Address;
+        
+        string? existing = addr != -1 ? _pseudoGen.GetCommentByAddress(addr) : _pseudoGen.GetUserComment(blockIdx, localIdx);
         var dlg = new Window
         {
             Title = "Line Comment", Width = 400, Height = 130, WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -738,8 +824,12 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
 
         if (dlg.ShowDialog() == true)
         {
-            _pseudoGen.SetUserComment(blockIdx, localIdx, string.IsNullOrWhiteSpace(tb.Text) ? null : tb.Text.Trim());
-            if (_layout != null) SetGraphDataAsync(_layout); else Redraw();
+            string? comment = string.IsNullOrWhiteSpace(tb.Text) ? null : tb.Text.Trim();
+            if (addr != -1) _pseudoGen.SetCommentByAddress(addr, comment);
+            else _pseudoGen.SetUserComment(blockIdx, localIdx, comment);
+
+            RefreshView();
+            RenameApplied?.Invoke(this, EventArgs.Empty); 
         }
     }
 

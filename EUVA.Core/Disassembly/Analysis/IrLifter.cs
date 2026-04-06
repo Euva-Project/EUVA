@@ -158,7 +158,8 @@ public sealed class IrLifter
                 => LiftStringInstruction(in instr, addr),
 
             
-            Mnemonic.Bswap or Mnemonic.Bsf or Mnemonic.Bsr
+            Mnemonic.Bswap => LiftUnaryOp(in instr, IrOpcode.Bswap, addr),
+            Mnemonic.Bsf or Mnemonic.Bsr
                 or Mnemonic.Bt or Mnemonic.Btc or Mnemonic.Btr or Mnemonic.Bts
                 or Mnemonic.Popcnt or Mnemonic.Lzcnt or Mnemonic.Tzcnt
                 => LiftUnhandled(in instr, addr),
@@ -764,15 +765,11 @@ public sealed class IrLifter
         bool isRep = instr.HasRepPrefix || instr.HasRepePrefix;
         bool isRepne = instr.HasRepnePrefix;
 
-        if (!isRep && !isRepne)
-            return LiftUnhandled(in instr, addr);
-
         byte ptrSize = (byte)(_bitness == 64 ? 64 : 32);
         var rdi = IrOperand.Reg(_bitness == 64 ? Register.RDI : Register.EDI, ptrSize);
         var rsi = IrOperand.Reg(_bitness == 64 ? Register.RSI : Register.ESI, ptrSize);
         var rcx = IrOperand.Reg(_bitness == 64 ? Register.RCX : Register.ECX, ptrSize);
         var rax = IrOperand.Reg(_bitness == 64 ? Register.RAX : Register.EAX, ptrSize);
-
         var retReg = IrOperand.Reg(_bitness == 64 ? Register.RAX : Register.EAX, ptrSize);
 
         int sizePerIter = instr.Mnemonic switch
@@ -784,34 +781,86 @@ public sealed class IrLifter
             _ => 1
         };
 
-        var countArg = sizePerIter == 1 
-            ? rcx 
-            : IrOperand.Expr(IrInstruction.MakeBinOp(IrOpcode.Mul, MakeTemp(ptrSize), rcx, IrOperand.Const(sizePerIter, ptrSize), addr));
+        if (isRep || isRepne)
+        {
+            var countArg = sizePerIter == 1 
+                ? rcx 
+                : IrOperand.Expr(IrInstruction.MakeBinOp(IrOpcode.Mul, MakeTemp(ptrSize), rcx, IrOperand.Const(sizePerIter, ptrSize), addr));
 
-        if (instr.Mnemonic is Mnemonic.Movsb or Mnemonic.Movsw or Mnemonic.Movsd or Mnemonic.Movsq)
-        {
-            var target = IrOperand.Const(0, 64);
-            target.Name = "memcpy";
-            var call = IrInstruction.MakeCall(retReg, target, new[] { rdi, rsi, countArg }, addr);
-            return new[] { call };
+            if (instr.Mnemonic is Mnemonic.Movsb or Mnemonic.Movsw or Mnemonic.Movsd or Mnemonic.Movsq)
+            {
+                var target = IrOperand.Const(0, 64);
+                target.Name = "memcpy";
+                return new[] { IrInstruction.MakeCall(retReg, target, new[] { rdi, rsi, countArg }, addr) };
+            }
+            else if (instr.Mnemonic is Mnemonic.Stosb or Mnemonic.Stosw or Mnemonic.Stosd or Mnemonic.Stosq)
+            {
+                var target = IrOperand.Const(0, 64);
+                target.Name = "memset";
+                var alArg = IrOperand.Reg(GetRegisterForSize(Register.AL, sizePerIter), (byte)(sizePerIter * 8)); 
+                return new[] { IrInstruction.MakeCall(retReg, target, new[] { rdi, alArg, countArg }, addr) };
+            }
+            else if (instr.Mnemonic is Mnemonic.Scasb or Mnemonic.Scasw or Mnemonic.Scasd or Mnemonic.Scasq)
+            {
+                var target = IrOperand.Const(0, 64);
+                target.Name = isRepne ? "memchr" : "scas_idiom";
+                var alArg = IrOperand.Reg(GetRegisterForSize(Register.AL, sizePerIter), (byte)(sizePerIter * 8));
+                return new[] { IrInstruction.MakeCall(retReg, target, new[] { rdi, alArg, countArg }, addr) };
+            }
         }
-        else if (instr.Mnemonic is Mnemonic.Stosb or Mnemonic.Stosw or Mnemonic.Stosd or Mnemonic.Stosq)
+        else
         {
-            var target = IrOperand.Const(0, 64);
-            target.Name = "memset";
-            var alArg = IrOperand.Reg(Register.AL, 8); 
-            var call = IrInstruction.MakeCall(retReg, target, new[] { rdi, alArg, countArg }, addr);
-            return new[] { call };
-        }
-        else if (instr.Mnemonic is Mnemonic.Scasb or Mnemonic.Scasw or Mnemonic.Scasd or Mnemonic.Scasq)
-        {
-            var target = IrOperand.Const(0, 64);
-            target.Name = isRepne ? "memchr" : "scas_idiom";
-            var alArg = IrOperand.Reg(Register.AL, 8);
-            var call = IrInstruction.MakeCall(retReg, target, new[] { rdi, alArg, countArg }, addr);
-            return new[] { call };
+            var result = new List<IrInstruction>();
+            switch (instr.Mnemonic)
+            {
+                case Mnemonic.Lodsb:
+                case Mnemonic.Lodsw:
+                case Mnemonic.Lodsd:
+                case Mnemonic.Lodsq:
+                    {
+                        var dataReg = IrOperand.Reg(GetRegisterForSize(Register.AL, sizePerIter), (byte)(sizePerIter * 8));
+                        result.Add(IrInstruction.MakeLoad(dataReg, IrOperand.Mem(rsi.Register, Register.None, 1, 0, (byte)(sizePerIter * 8)), addr));
+                        result.Add(IrInstruction.MakeBinOp(IrOpcode.Add, rsi, rsi, IrOperand.Const(sizePerIter, ptrSize), addr));
+                        break;
+                    }
+                case Mnemonic.Stosb:
+                case Mnemonic.Stosw:
+                case Mnemonic.Stosd:
+                case Mnemonic.Stosq:
+                    {
+                        var dataReg = IrOperand.Reg(GetRegisterForSize(Register.AL, sizePerIter), (byte)(sizePerIter * 8));
+                        result.Add(IrInstruction.MakeStore(IrOperand.Mem(rdi.Register, Register.None, 1, 0, (byte)(sizePerIter * 8)), dataReg, addr));
+                        result.Add(IrInstruction.MakeBinOp(IrOpcode.Add, rdi, rdi, IrOperand.Const(sizePerIter, ptrSize), addr));
+                        break;
+                    }
+                case Mnemonic.Movsb:
+                case Mnemonic.Movsw:
+                case Mnemonic.Movsd:
+                case Mnemonic.Movsq:
+                    {
+                        var tmp = MakeTemp((byte)(sizePerIter * 8));
+                        result.Add(IrInstruction.MakeLoad(tmp, IrOperand.Mem(rsi.Register, Register.None, 1, 0, (byte)(sizePerIter * 8)), addr));
+                        result.Add(IrInstruction.MakeStore(IrOperand.Mem(rdi.Register, Register.None, 1, 0, (byte)(sizePerIter * 8)), tmp, addr));
+                        result.Add(IrInstruction.MakeBinOp(IrOpcode.Add, rsi, rsi, IrOperand.Const(sizePerIter, ptrSize), addr));
+                        result.Add(IrInstruction.MakeBinOp(IrOpcode.Add, rdi, rdi, IrOperand.Const(sizePerIter, ptrSize), addr));
+                        break;
+                    }
+            }
+            if (result.Count > 0) return result.ToArray();
         }
         
         return LiftUnhandled(in instr, addr);
+    }
+
+    private static Register GetRegisterForSize(Register baseAl, int size)
+    {
+        return size switch
+        {
+            1 => baseAl,
+            2 => Register.AX,
+            4 => Register.EAX,
+            8 => Register.RAX,
+            _ => baseAl
+        };
     }
 }

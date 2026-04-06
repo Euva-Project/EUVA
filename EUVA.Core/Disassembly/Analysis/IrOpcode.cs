@@ -37,6 +37,7 @@ public enum IrOpcode : byte
     SignExtend,     
     Truncate,       
     StackAlloc,     
+    Bswap,          
     Unknown,        
 }
 

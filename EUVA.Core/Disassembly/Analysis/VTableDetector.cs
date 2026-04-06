@@ -49,10 +49,33 @@ public static class VTableDetector
                     var vtableLoad = FindVTableLoad(block, i, target.MemBase);
                     if (vtableLoad != null)
                     {
+                        var callArg = vtableLoad.Value;
                         var call = new VTableCall(
                             block.Index, i,
-                            vtableLoad.Value, target.MemDisplacement);
+                            callArg, target.MemDisplacement);
                         vtableCalls.Add(call);
+
+                        if (callArg.Kind == IrOperandKind.Register)
+                        {
+                            var canonical = IrOperand.GetCanonical(callArg.Register);
+                            foreach (var instr2 in block.Instructions)
+                            {
+                                if (instr2.DefinesDest && instr2.Destination.Kind == IrOperandKind.Register &&
+                                    IrOperand.GetCanonical(instr2.Destination.Register) == canonical &&
+                                    instr2.Destination.SsaVersion == callArg.SsaVersion)
+                                {
+                                    if (instr2.Destination.Type.BaseType == PrimitiveType.Unknown)
+                                    {
+                                        instr2.Destination.Type = new TypeInfo 
+                                        { 
+                                            BaseType = PrimitiveType.Struct, 
+                                            PointerLevel = 1,
+                                            TypeName = "Class_vtable"
+                                        };
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -6,10 +6,12 @@ public struct PseudocodeLine
 {
     public string Text;
     public PseudocodeSpan[] Spans;
+    public long Address;
 
-    public PseudocodeLine(string text, PseudocodeSpan[]? spans = null)
+    public PseudocodeLine(string text, PseudocodeSpan[]? spans = null, long address = -1)
     {
         Text = text;
+        Address = address;
         Spans = spans ?? new[] { new PseudocodeSpan(0, text.Length, PseudocodeSyntax.Text) };
     }
 

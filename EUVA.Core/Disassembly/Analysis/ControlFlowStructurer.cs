@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+using System.Collections.Generic;
+using System.Linq;
+
 namespace EUVA.Core.Disassembly.Analysis;
 
 public abstract class StructuredNode
@@ -38,6 +41,7 @@ public sealed class WhileNode : StructuredNode
 
 public sealed class ForNode : StructuredNode
 {
+    public bool IsDoWhile;
     public IrInstruction? InitInstr;
     public IrCondition Condition;
     public IrInstruction? ConditionInstr;
@@ -85,70 +89,286 @@ public static class ControlFlowStructurer
         return root ?? new SequenceNode();
     }
 
-    private static void OptimizeAst(StructuredNode node)
+    private static StructuredNode OptimizeAst(StructuredNode node)
     {
+        SimplifyNodeCondition(node);
+
         if (node is SequenceNode seq)
         {
             for (int i = 0; i < seq.Children.Count; i++)
             {
-                OptimizeAst(seq.Children[i]);
+                seq.Children[i] = OptimizeAst(seq.Children[i]);
 
-                if (seq.Children[i] is WhileNode wn)
-                {
-                    IrInstruction? init = null;
-                    if (i > 0 && seq.Children[i - 1] is BlockNode prevBlock && prevBlock.Block.Instructions.Count > 0)
+                    if (seq.Children[i] is WhileNode wn)
                     {
-                        var lastActive = prevBlock.Block.Instructions.LastOrDefault(ins => !ins.IsDead && ins.Opcode != IrOpcode.Branch && ins.Opcode != IrOpcode.CondBranch && ins.Opcode != IrOpcode.Cmp && ins.Opcode != IrOpcode.Test);
-                        if (lastActive != null && lastActive.Opcode == IrOpcode.Assign)
-                            init = lastActive;
-                    }
-
-                    IrInstruction? step = null;
-                    StructuredNode bodyEnd = wn.Body;
-                    if (bodyEnd is SequenceNode bodySeq && bodySeq.Children.Count > 0)
-                        bodyEnd = bodySeq.Children[^1];
-
-                    if (bodyEnd is BlockNode endBlock && endBlock.Block.Instructions.Count > 0)
-                    {
-                        var lastActive = endBlock.Block.Instructions.LastOrDefault(ins => !ins.IsDead && ins.Opcode != IrOpcode.Branch && ins.Opcode != IrOpcode.CondBranch && ins.Opcode != IrOpcode.Cmp && ins.Opcode != IrOpcode.Test);
-                        if (lastActive != null && (lastActive.Opcode == IrOpcode.Add || lastActive.Opcode == IrOpcode.Sub || lastActive.Opcode == IrOpcode.Assign))
+                        if (wn.Condition == IrCondition.NotEqual && 
+                            wn.ConditionInstr != null && 
+                            wn.ConditionInstr.Sources.Length >= 2 && 
+                            wn.ConditionInstr.Sources[1].Kind == IrOperandKind.Constant && 
+                            wn.ConditionInstr.Sources[1].ConstantValue == 0)
                         {
-                            step = lastActive;
+                            var condVar = wn.ConditionInstr.Sources[0];
+                            (var init, var step) = FindForLoopComponents(seq, i, condVar, wn.Body);
+
+                            if (init != null && step != null)
+                            {
+                                seq.Children[i] = new ForNode
+                                {
+                                    InitInstr = init,
+                                    Condition = wn.Condition,
+                                    ConditionInstr = wn.ConditionInstr,
+                                    StepInstr = step,
+                                    Body = wn.Body
+                                };
+                                init.IsDead = true;
+                                step.IsDead = true;
+                            }
                         }
                     }
-
-                    if (init != null && step != null)
+                    else if (seq.Children[i] is DoWhileNode dwn)
                     {
-                        
-                        init.IsDead = true;
-                        step.IsDead = true;
-
-                        seq.Children[i] = new ForNode
+                        if (dwn.Condition == IrCondition.NotEqual && 
+                            dwn.ConditionInstr != null && 
+                            dwn.ConditionInstr.Sources.Length >= 2 && 
+                            dwn.ConditionInstr.Sources[1].Kind == IrOperandKind.Constant && 
+                            dwn.ConditionInstr.Sources[1].ConstantValue == 0)
                         {
-                            InitInstr = init,
-                            Condition = wn.Condition,
-                            ConditionInstr = wn.ConditionInstr,
-                            StepInstr = step,
-                            Body = wn.Body
-                        };
+                            var condVar = dwn.ConditionInstr.Sources[0];
+                            (var init, var step) = FindForLoopComponents(seq, i, condVar, dwn.Body);
+
+                            if (init != null && step != null)
+                            {
+                                seq.Children[i] = new ForNode
+                                {
+                                    IsDoWhile = true,
+                                    InitInstr = init,
+                                    Condition = dwn.Condition,
+                                    ConditionInstr = dwn.ConditionInstr,
+                                    StepInstr = step,
+                                    Body = dwn.Body
+                                };
+                                init.IsDead = true;
+                                step.IsDead = true;
+                            }
+                        }
                     }
-                }
             }
+            return seq;
         }
         else if (node is IfNode ifn)
         {
-            OptimizeAst(ifn.ThenBody);
-            if (ifn.ElseBody != null) OptimizeAst(ifn.ElseBody);
+            ifn.ThenBody = OptimizeAst(ifn.ThenBody);
+            if (ifn.ElseBody != null) ifn.ElseBody = OptimizeAst(ifn.ElseBody);
+
+            if (IsAlwaysTrue(ifn.Condition, ifn.ConditionInstr))
+            {
+                return ifn.ThenBody;
+            }
+            if (IsAlwaysFalse(ifn.Condition, ifn.ConditionInstr))
+            {
+                return ifn.ElseBody ?? new SequenceNode();
+            }
+            return ifn;
         }
-        else if (node is WhileNode wn) OptimizeAst(wn.Body);
-        else if (node is DoWhileNode dwn) OptimizeAst(dwn.Body);
-        else if (node is ForNode fn) OptimizeAst(fn.Body);
+        else if (node is WhileNode wn2) 
+        {
+            wn2.Body = OptimizeAst(wn2.Body);
+            return wn2;
+        }
+        else if (node is DoWhileNode dwn) 
+        {
+            dwn.Body = OptimizeAst(dwn.Body);
+            return dwn;
+        }
+        else if (node is ForNode fn) 
+        {
+            fn.Body = OptimizeAst(fn.Body);
+            return fn;
+        }
         else if (node is SwitchNode sn)
         {
-            foreach (var c in sn.Cases) OptimizeAst(c.Body);
-            if (sn.DefaultBody != null) OptimizeAst(sn.DefaultBody);
+            for (int i = 0; i < sn.Cases.Count; i++)
+            {
+                var (val, body) = sn.Cases[i];
+                sn.Cases[i] = (val, OptimizeAst(body));
+            }
+            if (sn.DefaultBody != null) sn.DefaultBody = OptimizeAst(sn.DefaultBody);
+            return sn;
         }
+        return node;
     }
+
+    private static (IrInstruction? Init, IrInstruction? Step) FindForLoopComponents(SequenceNode seq, int loopIdx, IrOperand condVar, StructuredNode body)
+    {
+        if (condVar.Kind != IrOperandKind.Register && condVar.Kind != IrOperandKind.StackSlot) return (null, null);
+        string? vName = condVar.Name;
+        if (string.IsNullOrEmpty(vName)) return (null, null);
+
+        IrInstruction? init = null;
+        for (int k = loopIdx - 1; k >= 0; k--)
+        {
+            init = FindInNode(seq.Children[k], condVar);
+            if (init != null) break;
+        }
+
+        IrInstruction? step = FindInNode(body, condVar);
+
+        if (step != null && (step.Opcode != IrOpcode.Add && step.Opcode != IrOpcode.Sub && step.Opcode != IrOpcode.Assign))
+            step = null;
+
+        return (init, step);
+    }
+
+    private static IrInstruction? FindInNode(StructuredNode node, IrOperand target)
+    {
+        if (node is BlockNode bn)
+        {
+            return bn.Block.Instructions.LastOrDefault(ins => !ins.IsDead && ins.DefinesDest && ins.Destination.SameLocation(target));
+        }
+        else if (node is SequenceNode sn)
+        {
+            for (int i = sn.Children.Count - 1; i >= 0; i--)
+            {
+                var found = FindInNode(sn.Children[i], target);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+
+    private static bool IsAlwaysTrue(IrCondition cond, IrInstruction? instr)
+    {
+        if (instr == null) return false;
+        if (instr.Opcode == IrOpcode.Cmp && instr.Sources.Length >= 2)
+        {
+            var left = instr.Sources[0];
+            var right = instr.Sources[1];
+
+            if (left.Kind == IrOperandKind.Constant && right.Kind == IrOperandKind.Constant)
+            {
+                long l = left.ConstantValue;
+                long r = right.ConstantValue;
+                return cond switch
+                {
+                    IrCondition.Equal => l == r,
+                    IrCondition.NotEqual => l != r,
+                    IrCondition.SignedLess => l < r,
+                    IrCondition.SignedLessEq => l <= r,
+                    IrCondition.SignedGreater => l > r,
+                    IrCondition.SignedGreaterEq => l >= r,
+                    IrCondition.UnsignedBelow => (ulong)l < (ulong)r,
+                    IrCondition.UnsignedBelowEq => (ulong)l <= (ulong)r,
+                    IrCondition.UnsignedAbove => (ulong)l > (ulong)r,
+                    IrCondition.UnsignedAboveEq => (ulong)l >= (ulong)r,
+                    _ => false
+                };
+            }
+
+            if (right.Kind == IrOperandKind.Constant && right.ConstantValue == 0)
+            {
+                if (cond == IrCondition.UnsignedAboveEq) return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsAlwaysFalse(IrCondition cond, IrInstruction? instr)
+    {
+        if (instr == null) return false;
+        if (instr.Opcode == IrOpcode.Cmp && instr.Sources.Length >= 2)
+        {
+            var left = instr.Sources[0];
+            var right = instr.Sources[1];
+
+            if (left.Kind == IrOperandKind.Constant && right.Kind == IrOperandKind.Constant)
+            {
+                long l = left.ConstantValue;
+                long r = right.ConstantValue;
+                return cond switch
+                {
+                    IrCondition.Equal => l != r,
+                    IrCondition.NotEqual => l == r,
+                    IrCondition.SignedLess => l >= r,
+                    IrCondition.SignedLessEq => l > r,
+                    IrCondition.SignedGreater => l <= r,
+                    IrCondition.SignedGreaterEq => l < r,
+                    IrCondition.UnsignedBelow => (ulong)l >= (ulong)r,
+                    IrCondition.UnsignedBelowEq => (ulong)l > (ulong)r,
+                    IrCondition.UnsignedAbove => (ulong)l <= (ulong)r,
+                    IrCondition.UnsignedAboveEq => (ulong)l < (ulong)r,
+                    _ => false
+                };
+            }
+
+            if (right.Kind == IrOperandKind.Constant && right.ConstantValue == 0)
+            {
+                if (cond == IrCondition.UnsignedBelow) return true;
+            }
+        }
+        return false;
+    }
+
+    private static void SimplifyNodeCondition(StructuredNode node)
+    {
+        IrCondition cond = IrCondition.None;
+        IrInstruction? instr = null;
+
+        if (node is IfNode ifn) { cond = ifn.Condition; instr = ifn.ConditionInstr; }
+        else if (node is WhileNode wn) { cond = wn.Condition; instr = wn.ConditionInstr; }
+        else if (node is ForNode fn) { cond = fn.Condition; instr = fn.ConditionInstr; }
+        else if (node is DoWhileNode dwn) { cond = dwn.Condition; instr = dwn.ConditionInstr; }
+
+        if (instr == null || cond == IrCondition.None) return;
+
+        if (instr.Opcode == IrOpcode.Cmp && instr.Sources.Length >= 2)
+        {
+            var left = instr.Sources[0];
+            var right = instr.Sources[1];
+
+            if (left.Kind == IrOperandKind.Constant && right.Kind != IrOperandKind.Constant)
+            {
+                instr.Sources[0] = right;
+                instr.Sources[1] = left;
+                cond = ReverseConditionOperator(cond);
+                left = instr.Sources[0];
+                right = instr.Sources[1];
+            }
+
+
+            if (right.Kind == IrOperandKind.Constant && right.ConstantValue == 0)
+            {
+                if (cond == IrCondition.UnsignedBelowEq) 
+                    cond = IrCondition.Equal;
+                else if (cond == IrCondition.UnsignedAbove) 
+                    cond = IrCondition.NotEqual;
+                else if (cond == IrCondition.UnsignedAboveEq) 
+                {
+                }
+                else if (cond == IrCondition.UnsignedBelow) 
+                {
+                }
+            }
+        }
+
+        if (node is IfNode ifn2) ifn2.Condition = cond;
+        else if (node is WhileNode wn2) wn2.Condition = cond;
+        else if (node is ForNode fn2) fn2.Condition = cond;
+        else if (node is DoWhileNode dwn2) dwn2.Condition = cond;
+    }
+
+    private static IrCondition ReverseConditionOperator(IrCondition cond) => cond switch
+    {
+        IrCondition.SignedLess => IrCondition.SignedGreater,
+        IrCondition.SignedLessEq => IrCondition.SignedGreaterEq,
+        IrCondition.SignedGreater => IrCondition.SignedLess,
+        IrCondition.SignedGreaterEq => IrCondition.SignedLessEq,
+        IrCondition.UnsignedBelow => IrCondition.UnsignedAbove,
+        IrCondition.UnsignedBelowEq => IrCondition.UnsignedAboveEq,
+        IrCondition.UnsignedAbove => IrCondition.UnsignedBelow,
+        IrCondition.UnsignedAboveEq => IrCondition.UnsignedBelowEq,
+        _ => cond
+    };
 
     private static StructuredNode? StructureRegion(IrBlock[] blocks, int start, int end,
         HashSet<int> visited, Dictionary<int, LoopInfo> loopMap)

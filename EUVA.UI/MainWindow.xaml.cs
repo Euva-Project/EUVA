@@ -26,6 +26,9 @@ using EUVA.UI.Parsers;
 using System.Text.RegularExpressions;
 using System.Linq;
 using System.Diagnostics;
+using EUVA.Core.Scripting;
+using EUVA.Core.Disassembly.Analysis;
+using EUVA.Core.DatabaseParser;
 
 namespace EUVA.UI;
 
@@ -318,10 +321,40 @@ public partial class MainWindow : Window
 
     private async void InitializeSystemSettings()
     {
+
+        ScriptLoader.Instance.OnLogMessage = msg => 
+        {
+            LogMessage(msg); 
+        };
+
         LogMessage("[System] Initializing environment...");
         HotkeyManager.LoadDefaults();
         ThemeManager.Instance.ApplyDefaultTheme();
+            try
+            {
+                string oldSignaturesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "signatures.json");
+                if (File.Exists(oldSignaturesPath))
+                {
+                    SignatureCache.Load(oldSignaturesPath);
+                }
 
+                string fingerprintDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "standard_signatures.json.gz");
+                
+                await DatabaseParser.LoadFingerprintsGzAsync(fingerprintDbPath);
+
+                int apiCount = SignatureCache.Db?.ApiSignatures?.Count ?? 0;
+                int triggerCount = SignatureCache.Db?.StringTriggers?.Count ?? 0;
+                
+                string fpStats = FingerprintIndex.Instance.GetStats();
+
+                LogMessage($"[EUVA] Loading API: {apiCount}, Triggers: {triggerCount}");
+                LogMessage($"[EUVA] Base fingerprints: {fpStats} successfully loaded into memory.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Warning: Error occurred while loading knowledge base!\n{ex.Message}", 
+                                "EUVA Engine", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "euva.cfg");
         if (File.Exists(configPath))
         {
@@ -355,6 +388,7 @@ public partial class MainWindow : Window
 
         HexView.InvalidateVisual();
     }
+
 
     private void InitializeDetectors()
     {
@@ -440,7 +474,6 @@ try
             ushort peSig = BitConverter.ToUInt16(headerData, peOffset);
             ushort magic = BitConverter.ToUInt16(headerData, peOffset + 24);
             
-            LogMessage($"[Debug] PE Offset: 0x{peOffset:X}, Magic: 0x{magic:X}");
 
             if (magic == 0x20B) 
             {
@@ -463,7 +496,9 @@ try
         {
             _pseudocodeGen.ResolvedImports = iatParser.ParsedImports;
             _pseudocodeGen.SetImports(iatParser.ParsedImports);
-            LogMessage($"[IAT] Resolved {_pseudocodeGen.ResolvedImports.Count} imports.");
+            _pseudocodeGen.SetStrings(iatParser.StringCache);
+            _pseudocodeGen.SetStringExtractor(iatParser.ExtractStringAt);
+            LogMessage($"[IAT] Resolved {_pseudocodeGen.ResolvedImports.Count} imports. Discovered {iatParser.StringCache.Count} initial strings.");
         }
     }
 

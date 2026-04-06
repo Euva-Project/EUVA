@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using EUVA.UI.Controls;
 using EUVA.UI.Controls.Hex;
+using EUVA.Core.Disassembly;
 using static EUVA.UI.Controls.Hex.DisassemblerHexView;
 
 namespace EUVA.UI;
@@ -219,14 +220,16 @@ public partial class MainWindow
                     long ptrRawData = secNode.Offset ?? 0;
                     long secSize = secNode.Size ?? 0;
                     uint virtualAddr = 0;
-
-                    
+                    uint characteristics = 0;
                     foreach (var field in secNode.Children)
                     {
                         if (field.Name == "VirtualAddress" && field.Value != null)
                         {
                             try { virtualAddr = Convert.ToUInt32(field.Value); } catch { }
-                            break;
+                        }
+                        else if (field.Name == "Characteristics" && field.Value != null)
+                        {
+                            try { characteristics = Convert.ToUInt32(field.Value); } catch { }
                         }
                     }
 
@@ -237,7 +240,7 @@ public partial class MainWindow
                     if (secCount < secList.Length)
                     {
                         secList[secCount] = new PeSectionInfo(
-                            secNode.Name, ptrRawData, secSize, virtualAddr);
+                            secNode.Name, ptrRawData, secSize, virtualAddr, characteristics);
                         secCount++;
                     }
                 }

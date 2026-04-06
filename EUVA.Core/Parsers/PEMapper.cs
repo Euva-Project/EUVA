@@ -22,6 +22,7 @@ public class PEMapper : IBinaryMapper
     private byte[] _fileData = Array.Empty<byte>();
 
     public BinaryStructure? RootStructure => _rootStructure;
+    public ReadOnlySpan<byte> MappingSpan => _fileData;
 
     public BinaryStructure Parse(ReadOnlySpan<byte> data)
     {

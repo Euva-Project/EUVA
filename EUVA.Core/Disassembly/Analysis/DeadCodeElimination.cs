@@ -187,12 +187,12 @@ public static class DeadCodeElimination
             if (src.MemBase != Iced.Intel.Register.None)
             {
                 var k = ($"r_{IrOperand.GetCanonical(src.MemBase)}", src.SsaVersion);
-                if (useCounts.ContainsKey(k)) useCounts[k]--;
+                if (useCounts.TryGetValue(k, out int c)) useCounts[k] = c - 1;
             }
             if (src.MemIndex != Iced.Intel.Register.None)
             {
                 var k = ($"r_{IrOperand.GetCanonical(src.MemIndex)}", src.SsaVersion);
-                if (useCounts.ContainsKey(k)) useCounts[k]--;
+                if (useCounts.TryGetValue(k, out int c)) useCounts[k] = c - 1;
             }
         }
         else
@@ -201,7 +201,7 @@ public static class DeadCodeElimination
             if (key != null && src.SsaVersion >= 0)
             {
                 var k = (key, src.SsaVersion);
-                if (useCounts.ContainsKey(k)) useCounts[k]--;
+                if (useCounts.TryGetValue(k, out int c)) useCounts[k] = c - 1;
             }
         }
     }

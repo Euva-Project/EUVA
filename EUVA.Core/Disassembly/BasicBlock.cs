@@ -11,7 +11,9 @@ public struct BasicBlock
     public int ByteLength;
     public int InstructionCount;
     public int[] Successors;
+    public long[] SuccessorOffsets; 
     public bool IsConditional;
     public bool IsReturn;
     public bool IsFirstBlock;
+    public bool IsData; 
 }

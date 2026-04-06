@@ -50,24 +50,23 @@ public sealed class DecompilerEngine
     public Dictionary<string, VariableSymbol> GlobalRenames { get; } = new();
     public Dictionary<string, HashSet<ulong>> GlobalStructs { get; } = new();
 
-    
     public double CellWidth { get; set; } = 9.0;
     public double CellHeight { get; set; } = 15.0;
     public int MaxCharsPerLine { get; set; } = 48;
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public unsafe LayoutResult BuildFunctionGraph(byte* data, int length, long baseAddress, int bitness, PseudocodeGenerator? pseudoGen = null, byte* fileMap = null, long fileLength = 0)
+    public unsafe LayoutResult BuildFunctionGraph(byte* data, int length, long baseAddress, int bitness, PseudocodeGenerator? pseudoGen = null, byte* fileMap = null, long fileLength = 0, ExecutableRange[]? executableSections = null)
     {
         ScriptLoader.Instance.PrepareFunctionPassesAsync().GetAwaiter().GetResult();
         
-        var blocks = _scanner.ScanFunction(data, length, baseAddress, bitness);
+        var blocks = _scanner.ScanFunction(data, length, baseAddress, bitness, fileMap, fileLength, executableSections);
         if (blocks.Length == 0)
             return new LayoutResult();
 
         var graph = new GeometryGraph();
         var msaglNodes = new Node[blocks.Length];
         var layoutNodes = new LayoutNode[blocks.Length];
-
+        
         
         for (int i = 0; i < blocks.Length; i++)
         {

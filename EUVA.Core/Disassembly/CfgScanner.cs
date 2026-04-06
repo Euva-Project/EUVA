@@ -1,338 +1,247 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Iced.Intel;
 
 namespace EUVA.Core.Disassembly;
 
+public struct ExecutableRange
+{
+    public long Start;
+    public long End;
+    public string Name;
+}
+
 public sealed class CfgScanner
 {
-    private const int MaxBlocks = 4096;
-    private const int MaxBlockInstr = 512;
+    private const int MaxBlocks = 32768; 
+    private const int MaxBlockInstr = 1000;
 
-    
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public unsafe BasicBlock[] ScanFunction(byte* data, int length, long baseAddress, int bitness)
+    public unsafe BasicBlock[] ScanFunction(byte* data, int length, long baseAddress, int bitness, byte* fullMap = null, long fullLen = 0, ExecutableRange[]? executableSections = null)
     {
         if (length <= 0) return Array.Empty<BasicBlock>();
 
+        var visited = new HashSet<long>();
+        var queue = new Queue<long>();
+        var leaders = new HashSet<long>();
+
+        queue.Enqueue(baseAddress);
+        leaders.Add(baseAddress);
+
+        var reader = new UnsafePointerCodeReader();
         
-        var leaders = ArrayPool<long>.Shared.Rent(MaxBlocks);
-        var leaderCount = 0;
-
-        try
+        while (queue.Count > 0)
         {
-            leaders[leaderCount++] = baseAddress; 
+            long currentIP = queue.Dequeue();
+            if (visited.Contains(currentIP)) continue;
+            visited.Add(currentIP);
 
-            var reader = new UnsafePointerCodeReader();
-            reader.Reset(data, length);
-            var decoder = Decoder.Create(bitness, reader, (ulong)baseAddress);
-            ulong endIP = (ulong)baseAddress + (ulong)length;
-            Instruction instr = default;
+            byte* basePtr = (fullMap != null) ? fullMap : data;
+            long baseLimit = (fullMap != null) ? fullLen : baseAddress + length;
+            long baseAddrRel = (fullMap != null) ? 0 : baseAddress;
 
-            while (decoder.IP < endIP)
+            if (currentIP < baseAddrRel || currentIP >= baseLimit) continue;
+            
+            if (executableSections != null && !IsExecutable(currentIP, executableSections))
+                continue;
+
+            reader.Reset(basePtr + (currentIP - baseAddrRel), (int)(baseLimit - currentIP));
+            var decoder = Decoder.Create(bitness, reader, (ulong)currentIP);
+            
+            int continuousZeros = 0;
+            int continuousPaddings = 0;
+
+            for (int i = 0; i < MaxBlockInstr; i++)
             {
-                decoder.Decode(out instr);
-                if (instr.IsInvalid)
+                decoder.Decode(out var instr);
+
+            
+                if (instr.IsInvalid) break; 
+
+                if (instr.Code == Code.Add_rm8_r8 && instr.Op0Kind == OpKind.Memory && instr.Op1Kind == OpKind.Register)
                 {
-                    
-                    continue;
+                    continuousZeros++;
+                    if (continuousZeros >= 4) break; 
                 }
+                else continuousZeros = 0;
 
-                ulong nextIP = instr.NextIP;
+              
+                if (instr.Mnemonic == Mnemonic.Int3 || instr.Mnemonic == Mnemonic.Nop || instr.Mnemonic == Mnemonic.Fnop)
+                {
+                    continuousPaddings++;
+                    if (continuousPaddings >= 4) break; 
+                }
+                else continuousPaddings = 0;
 
+                long nextIP = (long)instr.NextIP;
+                bool isTerminal = false;
+
+             
                 switch (instr.FlowControl)
                 {
                     case FlowControl.ConditionalBranch:
-                        
-                        AddLeader(leaders, ref leaderCount, (long)instr.NearBranchTarget, baseAddress, length);
-                        AddLeader(leaders, ref leaderCount, (long)nextIP, baseAddress, length);
+                        long t1 = (long)instr.NearBranchTarget;
+                        if (CheckAndEnqueue(t1, queue, leaders, executableSections)) { }
+                        if (CheckAndEnqueue(nextIP, queue, leaders, executableSections)) { }
+                        isTerminal = true;
                         break;
 
                     case FlowControl.UnconditionalBranch:
-                        AddLeader(leaders, ref leaderCount, (long)instr.NearBranchTarget, baseAddress, length);
-                        
-                        AddLeader(leaders, ref leaderCount, (long)nextIP, baseAddress, length);
+                        long t2 = (long)instr.NearBranchTarget;
+                        if (CheckAndEnqueue(t2, queue, leaders, executableSections)) { }
+                        isTerminal = true;
                         break;
 
                     case FlowControl.Return:
                     case FlowControl.Exception:
-                        
-                        AddLeader(leaders, ref leaderCount, (long)nextIP, baseAddress, length);
+                        isTerminal = true;
                         break;
 
                     case FlowControl.Call:
                     case FlowControl.IndirectCall:
-                        
+                       
+                        if (IsNonReturningCall(instr)) isTerminal = true;
                         break;
 
                     case FlowControl.IndirectBranch:
-                        
-                        AddLeader(leaders, ref leaderCount, (long)nextIP, baseAddress, length);
+                        isTerminal = true;
                         break;
                 }
+
+                if (isTerminal) break;
+                
+               
+                if (leaders.Contains(nextIP)) break;
             }
-
-            
-            Array.Sort(leaders, 0, leaderCount);
-            int uniqueCount = DeduplicateLeaders(leaders, leaderCount);
-
-            
-            var blocks = BuildBlocks(data, length, baseAddress, bitness, leaders, uniqueCount);
-
-            
-            return CollapsePaddingBlocks(blocks, data, length, baseAddress, bitness);
         }
-        finally
+
+        var leaderList = leaders.OrderBy(x => x).ToArray();
+        return BuildBlocksRecursive(data, length, baseAddress, bitness, leaderList, fullMap, fullLen, executableSections);
+    }
+
+    private static bool IsExecutable(long addr, ExecutableRange[] sections)
+    {
+        foreach (var sec in sections)
+            if (addr >= sec.Start && addr < sec.End) return true;
+        return false;
+    }
+
+    private static bool CheckAndEnqueue(long addr, Queue<long> q, HashSet<long> leaders, ExecutableRange[]? executableSections)
+    {
+        if (executableSections != null && !IsExecutable(addr, executableSections)) return false;
+        if (leaders.Add(addr))
         {
-            ArrayPool<long>.Shared.Return(leaders);
+            q.Enqueue(addr);
+            return true;
         }
+        return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void AddLeader(long[] leaders, ref int count, long addr, long baseAddr, int length)
+    private static bool IsNonReturningCall(Instruction instr)
     {
-        if (addr < baseAddr || addr >= baseAddr + length) return;
-        if (count >= leaders.Length) return;
-        leaders[count++] = addr;
+        return false; 
     }
 
-    private static int DeduplicateLeaders(long[] arr, int count)
+    private unsafe BasicBlock[] BuildBlocksRecursive(byte* data, int length, long baseAddress, int bitness, long[] leaders, byte* fullMap, long fullLen, ExecutableRange[]? executableSections)
     {
-        if (count <= 1) return count;
-        int write = 1;
-        for (int i = 1; i < count; i++)
-        {
-            if (arr[i] != arr[write - 1])
-                arr[write++] = arr[i];
-        }
-        return write;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private unsafe BasicBlock[] BuildBlocks(byte* data, int length, long baseAddress,
-        int bitness, long[] leaders, int leaderCount)
-    {
-        var blocks = new BasicBlock[leaderCount];
+        var blocks = new List<BasicBlock>();
         var reader = new UnsafePointerCodeReader();
+        byte* basePtr = (fullMap != null) ? fullMap : data;
+        long baseLimit = (fullMap != null) ? fullLen : baseAddress + length;
+        long baseAddrRel = (fullMap != null) ? 0 : baseAddress;
 
-        for (int bi = 0; bi < leaderCount; bi++)
+        for (int i = 0; i < leaders.Length; i++)
         {
-            long blockStart = leaders[bi];
-            long blockEnd = (bi + 1 < leaderCount) ? leaders[bi + 1] : baseAddress + length;
-            int blockLen = (int)(blockEnd - blockStart);
-            if (blockLen <= 0) { blocks[bi].StartOffset = blockStart; continue; }
+            long start = leaders[i];
+            if (start < baseAddrRel || start >= baseLimit) continue;
 
-            int dataOff = (int)(blockStart - baseAddress);
-            if (dataOff < 0 || dataOff >= length) { blocks[bi].StartOffset = blockStart; continue; }
+            reader.Reset(basePtr + (start - baseAddrRel), (int)(baseLimit - start));
+            var decoder = Decoder.Create(bitness, reader, (ulong)start);
+            
+            var block = new BasicBlock
+            {
+                StartOffset = start,
+                IsFirstBlock = (i == 0)
+            };
 
-            reader.Reset(data + dataOff, Math.Min(blockLen, length - dataOff));
-            var decoder = Decoder.Create(bitness, reader, (ulong)blockStart);
-            ulong endIP = (ulong)blockEnd;
-
+            var successors = new List<long>();
             int instrCount = 0;
-            Instruction lastInstr = default;
-            bool hasLast = false;
+            long currentIP = start;
 
-            while (decoder.IP < endIP && instrCount < MaxBlockInstr)
+            while (decoder.IP < (ulong)baseLimit && instrCount < MaxBlockInstr)
             {
                 decoder.Decode(out var instr);
-                if (instr.IsInvalid) { instrCount++; continue; }
-                lastInstr = instr;
-                hasLast = true;
+                if (instr.IsInvalid) break;
                 instrCount++;
-            }
+                currentIP = (long)decoder.IP;
 
-            blocks[bi].StartOffset = blockStart;
-            blocks[bi].ByteLength = blockLen;
-            blocks[bi].InstructionCount = instrCount;
-            blocks[bi].IsFirstBlock = (bi == 0);
-
-            if (!hasLast)
-            {
-                blocks[bi].IsReturn = true;
-                blocks[bi].Successors = Array.Empty<int>();
-                continue;
-            }
-
-            
-            switch (lastInstr.FlowControl)
-            {
-                case FlowControl.ConditionalBranch:
+                bool endBlock = false;
+                switch (instr.FlowControl)
                 {
-                    blocks[bi].IsConditional = true;
-                    int targetIdx = FindBlock(leaders, leaderCount, (long)lastInstr.NearBranchTarget);
-                    int fallthroughIdx = FindBlock(leaders, leaderCount, (long)lastInstr.NextIP);
-                    if (targetIdx >= 0 && fallthroughIdx >= 0)
-                        blocks[bi].Successors = new[] { fallthroughIdx, targetIdx };
-                    else if (targetIdx >= 0)
-                        blocks[bi].Successors = new[] { targetIdx };
-                    else if (fallthroughIdx >= 0)
-                        blocks[bi].Successors = new[] { fallthroughIdx };
-                    else
-                        blocks[bi].Successors = Array.Empty<int>();
-                    break;
+                    case FlowControl.ConditionalBranch:
+                        successors.Add((long)instr.NearBranchTarget);
+                        successors.Add((long)instr.NextIP);
+                        block.IsConditional = true;
+                        endBlock = true;
+                        break;
+
+                    case FlowControl.UnconditionalBranch:
+                        successors.Add((long)instr.NearBranchTarget);
+                        endBlock = true;
+                        break;
+
+                    case FlowControl.Return:
+                    case FlowControl.Exception:
+                        block.IsReturn = true;
+                        endBlock = true;
+                        break;
+
+                    case FlowControl.IndirectBranch:
+                        endBlock = true;
+                        break;
+
+                    case FlowControl.Call:
+                        if (IsNonReturningCall(instr)) { block.IsReturn = true; endBlock = true; }
+                        break;
                 }
 
-                case FlowControl.UnconditionalBranch:
+                if (endBlock) break;
+
+             
+                if (i + 1 < leaders.Length && (long)decoder.IP >= leaders[i + 1])
                 {
-                    int targetIdx = FindBlock(leaders, leaderCount, (long)lastInstr.NearBranchTarget);
-                    blocks[bi].Successors = targetIdx >= 0 ? new[] { targetIdx } : Array.Empty<int>();
-                    break;
-                }
-
-                case FlowControl.Return:
-                case FlowControl.Exception:
-                    blocks[bi].IsReturn = true;
-                    blocks[bi].Successors = Array.Empty<int>();
-                    break;
-
-                case FlowControl.IndirectBranch:
-                    blocks[bi].Successors = Array.Empty<int>();
-                    break;
-
-                default:
-                {
-                    
-                    int nextIdx = bi + 1 < leaderCount ? bi + 1 : -1;
-                    blocks[bi].Successors = nextIdx >= 0 ? new[] { nextIdx } : Array.Empty<int>();
+                  
+                    successors.Add((long)decoder.IP);
                     break;
                 }
             }
+
+            block.InstructionCount = instrCount;
+            block.ByteLength = (int)(currentIP - start);
+         
+            block.SuccessorOffsets = successors.ToArray();
+            blocks.Add(block);
         }
 
-        return blocks;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int FindBlock(long[] leaders, int count, long address)
-    {
-        int idx = Array.BinarySearch(leaders, 0, count, address);
-        return idx >= 0 ? idx : -1;
-    }
-
-    private unsafe BasicBlock[] CollapsePaddingBlocks(BasicBlock[] blocks, byte* data, int length, long baseAddress, int bitness)
-    {
-        if (blocks.Length <= 1) return blocks;
-
-        var remove = new bool[blocks.Length];
-        var reader = new UnsafePointerCodeReader();
-
-        for (int i = 1; i < blocks.Length; i++) 
+       
+        var finalBlocks = blocks.ToArray();
+        for (int i = 0; i < finalBlocks.Length; i++)
         {
-            if (blocks[i].ByteLength <= 0) continue;
-            if (blocks[i].IsConditional || blocks[i].IsFirstBlock) continue;
-
-            int dataOff = (int)(blocks[i].StartOffset - baseAddress);
-            if (dataOff < 0 || dataOff >= length) continue;
-
-            int blockLen = Math.Min(blocks[i].ByteLength, length - dataOff);
-            if (blockLen <= 0) continue;
-
-            reader.Reset(data + dataOff, blockLen);
-            var decoder = Decoder.Create(bitness, reader, (ulong)blocks[i].StartOffset);
-            ulong endIP = (ulong)blocks[i].StartOffset + (ulong)blockLen;
-
-            bool allPadding = true;
-            int count = 0;
-            while (decoder.IP < endIP && count < MaxBlockInstr)
+            if (finalBlocks[i].SuccessorOffsets == null) continue;
+            var succIndices = new List<int>();
+            foreach (var off in finalBlocks[i].SuccessorOffsets)
             {
-                decoder.Decode(out var instr);
-                if (instr.IsInvalid) { count++; continue; }
-                if (instr.Mnemonic != Iced.Intel.Mnemonic.Nop &&
-                    instr.Mnemonic != Iced.Intel.Mnemonic.Fnop &&
-                    instr.Mnemonic != Iced.Intel.Mnemonic.Int3)
-                {
-                    allPadding = false;
-                    break;
-                }
-                count++;
+                int idx = Array.FindIndex(finalBlocks, b => b.StartOffset == off);
+                if (idx >= 0) succIndices.Add(idx);
             }
-
-            if (allPadding && count > 0)
-            {
-                
-                var paddingSuccessors = blocks[i].Successors ?? Array.Empty<int>();
-
-                
-                for (int p = 0; p < blocks.Length; p++)
-                {
-                    if (remove[p] || blocks[p].Successors == null) continue;
-
-                    bool pointsToRemoved = false;
-                    for (int s = 0; s < blocks[p].Successors.Length; s++)
-                    {
-                        if (blocks[p].Successors[s] == i)
-                        {
-                            pointsToRemoved = true;
-                            break;
-                        }
-                    }
-
-                    if (pointsToRemoved)
-                    {
-                        
-                        long predEnd = blocks[p].StartOffset + blocks[p].ByteLength;
-                        long thisEnd = blocks[i].StartOffset + blocks[i].ByteLength;
-                        if (thisEnd > predEnd)
-                            blocks[p].ByteLength = (int)(thisEnd - blocks[p].StartOffset);
-
-                        
-                        var merged = new List<int>();
-                        foreach (int s in blocks[p].Successors)
-                        {
-                            if (s == i)
-                            {
-                                
-                                foreach (int ps in paddingSuccessors)
-                                {
-                                    if (!merged.Contains(ps))
-                                        merged.Add(ps);
-                                }
-                            }
-                            else
-                            {
-                                if (!merged.Contains(s))
-                                    merged.Add(s);
-                            }
-                        }
-                        blocks[p].Successors = merged.ToArray();
-                    }
-                }
-                remove[i] = true;
-            }
+            finalBlocks[i].Successors = succIndices.ToArray();
         }
 
-        int kept = 0;
-        for (int i = 0; i < blocks.Length; i++)
-            if (!remove[i]) kept++;
-
-        if (kept == blocks.Length) return blocks; 
-
-        var remap = new int[blocks.Length];
-        var result = new BasicBlock[kept];
-        int wi = 0;
-        for (int i = 0; i < blocks.Length; i++)
-        {
-            if (remove[i]) { remap[i] = -1; continue; }
-            remap[i] = wi;
-            result[wi++] = blocks[i];
-        }
-
-        for (int i = 0; i < result.Length; i++)
-        {
-            if (result[i].Successors == null) continue;
-            var newSucc = new List<int>();
-            foreach (int s in result[i].Successors)
-            {
-                if (s >= 0 && s < remap.Length && remap[s] >= 0)
-                    newSucc.Add(remap[s]);
-            }
-            result[i].Successors = newSucc.ToArray();
-        }
-
-        return result;
+        return finalBlocks;
     }
 }

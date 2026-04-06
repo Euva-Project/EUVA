@@ -23,7 +23,11 @@ public struct IrOperand
     public int SsaVersion;         
     public long ConstantValue;
     public Register MemBase;
+    public int MemBaseSsaVersion;
     public Register MemIndex;
+    public int MemIndexSsaVersion;
+    public string? MemBaseName;
+    public string? MemIndexName;
     public int MemScale;
     public long MemDisplacement;
     public int StackOffset;        
@@ -52,7 +56,9 @@ public struct IrOperand
     {
         Kind = IrOperandKind.Memory,
         MemBase = @base,
+        MemBaseSsaVersion = -1,
         MemIndex = index,
+        MemIndexSsaVersion = -1,
         MemScale = scale,
         MemDisplacement = disp,
         BitSize = bitSize,
@@ -185,20 +191,25 @@ public struct TypeInfo : IEquatable<TypeInfo>
 {
     public PrimitiveType BaseType { get; set; }
     public byte PointerLevel { get; set; }
+    public string? TypeName { get; set; }
 
     public static TypeInfo Unknown => new TypeInfo { BaseType = PrimitiveType.Unknown, PointerLevel = 0 };
     public static TypeInfo VoidPtr => new TypeInfo { BaseType = PrimitiveType.Void, PointerLevel = 1 };
 
-    public bool Equals(TypeInfo other) => BaseType == other.BaseType && PointerLevel == other.PointerLevel;
+    public bool Equals(TypeInfo other) => 
+        BaseType == other.BaseType && 
+        PointerLevel == other.PointerLevel && 
+        TypeName == other.TypeName;
+
     public override bool Equals(object? obj) => obj is TypeInfo other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(BaseType, PointerLevel);
+    public override int GetHashCode() => HashCode.Combine(BaseType, PointerLevel, TypeName);
 
     public static bool operator ==(TypeInfo left, TypeInfo right) => left.Equals(right);
     public static bool operator !=(TypeInfo left, TypeInfo right) => !(left == right);
 
     public override string ToString()
     {
-        string name = BaseType.ToString();
+        string name = TypeName ?? BaseType.ToString();
         if (PointerLevel > 0) name += new string('*', PointerLevel);
         return name;
     }

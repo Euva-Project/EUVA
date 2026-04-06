@@ -48,15 +48,7 @@ By using EUVA, you acknowledge that you are solely responsible for your actions,
 
 ### 1. 🧬 High-Performance Hex Editor
 Experience binary data at its most primal level with a hardware-accelerated rendering engine. EUVA bypasses the standard WPF rendering pipeline to provide maximum performance.
-- **Hardware Acceleration**: Built on a custom `WriteableBitmap` engine that performs manual pixel-array manipulation before a single-step blit to video memory.
-- **Zero-Latency Scrolling**: Scales effortlessly to multi-gigabyte binaries via **Memory-Mapped Files (MMF)**, ensuring raw data is never loaded fully into the heap.
-- **PE Semantic Tree**: Automatically decomposes raw bytes into a navigable hierarchy, mapping specific fields to virtual addresses for instant lookup.
-- **DSL-language**: An language for replacing bytes and writing scripts for automatic changes
-- **YARA-X Integration**: Industrial-grade signature matching with windowed processing (16MB chunks) and deduplicated rule-name referencing for minimal RAM impact.
-- **Live Script Watcher**: Real-time patching via `.euv` scripts with a specialized cooldown mechanism to prevent file-lock conflicts during development.
-- **GlyphCache Subsystem**: Pre-rasterizes UI symbols into high-speed memory buffers, eliminating font-rendering overhead during rapid navigation.
-- **Byte Minimap**: A high-level visual overview of the binary's internal structure with **Entropy Analysis** for identifying encrypted or compressed regions.
-- **Dirty Tracking**: Optimized for security researchers with lock-free snapshot isolation for real-time change visualization.
+
 
 <p align="center">
   <img src="./screen/screen_003.png" width="100%" alt="EUVA Hex Editor Showcase">
@@ -65,13 +57,7 @@ Experience binary data at its most primal level with a hardware-accelerated rend
 </p>
 
 ### 2. ⚡ The Decompiler Engine
-The heart of EUVA. A multi-stage, industrial-grade pipeline that elevates raw machine code into human-readable C/C++ logic.
-- **Instruction Lifting**: Normalizes complex hardware ISAs into a clean, hardware-agnostic Intermediate Representation (IR).
-- **Static Single Assignment (SSA)**: Implements precise data-flow traversal using versioned variables and Phi ($\phi$) node unification.
-- **Advanced Optimization Passes**: Includes Copy Propagation, Dead Store Elimination (DSE), and recursive AST folding for zero-entropy pseudocode.
-- **Structure Discovery**: Sophisticated domination analysis to recover idiomatic `if/else`, `while`, and `for` loop patterns.
-- **Constraint-Based Type Inference**: A bidirectional propagation engine that reconstructs complex structs and pointers from memory-access footprints.
-- **Glass Engine C# Scripting**: Total programmatic control over the decompilation pipeline via runtime-compiled C# scripts for handling obfuscation.
+Pipeline that elevates raw machine code into human-readable C/C++ logic.
 
 <p align="center">
   <img src="./screen/screen_001.png" width="100%" alt="EUVA Decompiler Engine Showcase">
@@ -79,16 +65,20 @@ The heart of EUVA. A multi-stage, industrial-grade pipeline that elevates raw ma
 
 ### 3. 🔍 Advanced Disassembly
 High-performance logical listing for precise low-level analysis.
-- **Zero-Allocation Pipeline**: Leverages the Iced library with custom memory reuse to eliminate Garbage Collector pressure during million-instruction scrolls.
-- **Token-Based Rendering**: Manual character-by-character blitting into a backbuffer with themed color mapping for every instruction component.
-- **Synchronization Heuristics**: Advanced entry-point detection algorithms to find meaningful code boundaries in arbitrary byte streams.
-- **Dry-Decoding Engine**: Fast instruction counting and skipping without full text translation for ultra-responsive navigation.
+
+<p align="center">
+  <img src="./screen/screen_005.png" width="100%">
+</p>
+
 
 ### 🧩 Extension & Analysis (Other)
 EUVA is built to be "omnivorous" to new analysis methods.
-- **Plugin-Based Detectors**: A scalable architecture for detecting packers and protectors (Themida, WinLicense, UPX) via distributed priority-based plugins.
-- **Multi-Factor Confidence**: Scoring system that combines entropy analysis, section name anomalies, and signature matches for high-accuracy detection.
-- **Asynchronous Management**: Non-blocking detector execution to keep the UI perfectly responsive during massive file scans.
+
+<p align="center">
+  <img src="./screen/screen_006.png">
+</p>
+
+Yara rules and so on..
 
 ### 4. 🤖 AI-Agent Semantic Refactoring
 Bridge the gap between **Logic** and **Semantics**. Our experimental AI layer helps you identify variable names and function roles that are traditionally lost in compilation.
@@ -97,16 +87,7 @@ Bridge the gap between **Logic** and **Semantics**. Our experimental AI layer he
 > **Your Choice, Your Control**: The AI Agent is a "Bring Your Own Key" system. It supports Cloud LLMs (OpenAI, Claude, Groq) and Local LLMs (Ollama, LocalAI). **Privacy is paramount.**
 
 
-| 🔴 Before AI (Raw Decompilation) | 🟢 After AI (Semantic Refactor) |
-| :--- | :--- |
-| `v3 = (uint64_t)(v1 + 8);` | `current_ptr /* AI */ = (uint64_t)(v1 + 8);` |
-| `v4 = v2->field_FFFFFFFFFFFFFFFF;` | `i /* AI */ = v2->field_FFFFFFFFFFFFFFFF;` |
-| `v3->field_2 = (*v3 & 7);` | `current_ptr /* AI */->field_2 = (*current_ptr /* AI */ & 7);` |
-| `v3->field_1 = (v4 >> 4);` | `current_ptr /* AI */->field_1 = (i /* AI */ >> 4);` |
-| `rax = (uint8_t)(v4 & 15);` | `rax = (uint8_t)(i /* AI */ & 15);` |
-| `*v3 = rax;` | `*current_ptr /* AI */ = rax;` |
-| `...` | `...` |
-
+🟢 After AI (Semantic Refactor) 
 
 ---
 
@@ -135,6 +116,15 @@ Bridge the gap between **Logic** and **Semantics**. Our experimental AI layer he
 - **Scripting Decompiler** A C# scripting layer that allows you to write custom decompiler scripts and custom decompilation methods.
 - **AI Agents Decompiler** Bring your own API key Cloud or Local via Ollama to instantly restore human-readable variable names and code semantics without UI freezes.
 - **AI-Explain** Now AI can roughly explain decompiled code to you, giving you answers as high-quality as possible. (Experimental feat)
+- **Library Function Identification** Two-level fast-path: CRC32 hash matching Level 5A normalizes the first 32 bytes of a function and checks against a signature database; Fingerprint Radar Level 5B extracts a full IR-level feature vector topology, instruction mix, magic constants, block-size sequence and performs weighted similarity matching.
+- **Struct Recovery** Automatically reconstructs C/C++ struct layouts from raw memory access patterns by clustering `[base + displacement]` operands across the IR, detecting `this` pointers RCX/RDI and generating typed field maps.
+- **VTable Detection** Identifies virtual function calls by recognizing `call [vtable_reg + offset]` patterns where the vtable pointer was loaded from `[obj_ptr + 0]`, tagging calls as `vfunc_N` and typing object pointers as `Class_vtable*`.
+- **Idiom Recognition** Post-structuring pass that collapses common loop patterns into high-level intrinsic calls `do-while` zero-store loops become `memset()`, and load-store loops with dual pointer increments become `memcpy()`.
+- **Switch Detection** Identifies indirect jump tables by recognizing scaled-index memory operands `[table_base + idx * scale]` guarded by unsigned-compare bound-checks, recovering full `switch/case` structures with case counts and default targets.
+- **Semantic Guessing ApiChains** Assigns context-aware function names without AI by collecting all API calls within a function and matching them against known API chain patterns e.g., a function calling `socket → connect → send` is automatically named `network_send_data`.
+- **Variable Coalescing** Union-Find algorithm that groups SSA variable versions flowing through Φ-nodes and assignment chains into single human-readable names `var_N`, `arg_N`, drastically reducing pseudocode noise.
+- **Expression Simplifier** Algebraic identity engine that reduces IR before AST folding eliminates `x + 0`, `x × 1`, `x ⊕ x → 0`, `x & 0xFF..F → x`, and converts `x × 2ⁿ` into `x ≪ n`.
+- **Cross-References Xrefs** Full bidirectional xref analysis tracks call targets, branch targets, and RIP-relative/absolute memory references across the entire binary for instant "who calls this" / "where does this point" navigation.
 
 
 ---
@@ -175,9 +165,6 @@ dotnet run -c Release
 2. You can change bytes in a hex editor using an internal DSL language.
 3. Press `Ctrl+D` to open the **Disassembler**, `Ctrl+E` for the **Decompiler**
 4. *(Optional)* Configure your AI provider in **AI Settings** in the decompiler window to enable semantic refactoring
-
-> [!WARNING]
-> When using the **Glass Engine** (C# scripting), ensure the `Scripts/` folder contains valid `.cs` implementations to avoid pipeline startup latency.
 
 
 ---
@@ -222,6 +209,12 @@ Dive deeper into the theory and mechanics:
 | `View Disassembler` | `Ctrl+D` | View Disassembler |
 | `View Decompiler` | `Ctrl+E` | View Decompiler, use `F5` to switch between graphics mode and text mode |
 | `Highlight code` | `Ctrl+A` | Selecting code in text form in a decompiler |
+| `Function table` | `Ctrl+R` | show function table in decompiler |
+| `IAT Import` | `Ctrl+E` | show all IAT imports in the decompiler |
+| `Xrefs To` | `X` | display all variables that are called in the decompiler code |
+| `Xrefs From` | `X` | see where the current instruction refers (Disassembler) |
+| `Parent navigation` | `P/Enter` | view the parent of a disassembler instruction (Disassembler) |
+
 
 **You can reassign hotkeys by loading (via the settings in the program menu) and editing the .htk file.**
 

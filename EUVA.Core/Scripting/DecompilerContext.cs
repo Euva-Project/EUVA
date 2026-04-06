@@ -30,12 +30,4 @@ public sealed class DecompilerContext
         Emitter = emitter;
         AstRoot = astRoot;
     }
-
-    /// <summary>
-    /// Helper to force a type on an SSA-versioned operand.
-    /// </summary>
-    public void ForceType(IrOperand operand, TypeInfo type)
-    {
-        operand.Type = type;
-    }
 }

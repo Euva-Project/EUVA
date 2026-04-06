@@ -8,25 +8,26 @@ public static class NamingConventions
 {
     public static string GetRegisterName(Register reg)
     {
+        if (reg == Register.None) return "unkn";
         var canonical = IrOperand.GetCanonical(reg);
         return canonical switch
         {
             Register.RAX => "rax",
-            Register.RCX => "a1",
-            Register.RDX => "a2",
-            Register.R8 => "a3",
-            Register.R9 => "a4",
+            Register.RCX => "rcx",
+            Register.RDX => "rdx",
+            Register.R8 => "r8",
+            Register.R9 => "r9",
             Register.RBX => "v1",
             Register.RSI => "v2",
             Register.RDI => "v3",
-            Register.RBP => "rbp",
+            Register.RBP => "v4",
             Register.RSP => "rsp",
-            Register.R10 => "t1",
-            Register.R11 => "t2",
-            Register.R12 => "v4",
-            Register.R13 => "v5",
-            Register.R14 => "v6",
-            Register.R15 => "v7",
+            Register.R10 => "v5",
+            Register.R11 => "v6",
+            Register.R12 => "v7",
+            Register.R13 => "v8",
+            Register.R14 => "v9",
+            Register.R15 => "v10",
             _ => reg.ToString().ToLowerInvariant(),
         };
     }
@@ -44,11 +45,22 @@ public static class NamingConventions
     {
         if (op.Name != null) return op.Name;
 
+        if (op.Kind == IrOperandKind.Register)
+        {
+            var canonical = IrOperand.GetCanonical(op.Register);
+            if ((canonical == Register.RCX || canonical == Register.RDI) && 
+                op.Type.BaseType == PrimitiveType.Struct && op.Type.PointerLevel > 0)
+            {
+                return "this";
+            }
+            return GetRegisterName(op.Register);
+        }
+
         return op.Kind switch
         {
-            IrOperandKind.Register => GetRegisterName(op.Register),
             IrOperandKind.StackSlot => GetStackVariableName(op.StackOffset),
-            _ => op.Register == Register.None && op.SsaVersion != 0 ? $"tmp_{Math.Abs(op.SsaVersion)}" : "tmp"
+            _ => (op.Kind == IrOperandKind.Register && op.Register == Register.None) || op.SsaVersion != 0 
+                ? $"tmp_{Math.Abs(op.SsaVersion)}" : "tmp"
         };
     }
 }

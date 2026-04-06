@@ -17,6 +17,10 @@ packages/
 
 *.dmp
 *.pdb
+*.ini
 
 native/
 ready-to-go/
+libs/
+EUVA.Harvester/
+.vscode/
