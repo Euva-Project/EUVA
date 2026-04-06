@@ -15,8 +15,7 @@
 </p>
 
 <p align="center">
-  <strong>The next generation of binary reverse engineering. Slice through protection, recover semantics, and reclaim your code.</strong>
-  <strong>Zero bloat. Zero vendor lock-in. Maximum signal.</strong>
+  <strong>The next generation of binary reverse engineering. Slice through protection, recover semantics, and reclaim your code. </strong>
 </p>
 
 ---
