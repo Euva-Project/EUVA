@@ -36,14 +36,14 @@ public sealed class ProcessAdmin
         Console.ForegroundColor = prev;
     }
 
-    public async Task<List<RobotAnnotation>> RunPipelineAsync(string linearOutput, CancellationToken ct = default)
+    public async Task<List<RobotAnnotation>> RunPipelineAsync(long funcAddress, string linearOutput, CancellationToken ct = default)
     {
-        
         await InvokeHelloPhaseAsync(ct).ConfigureAwait(false);
 
-        var results = await KickAllSimultaneouslyAsync(linearOutput, ct).ConfigureAwait(false);
+        string dumpPath = WorkspaceManager.CreateFunctionWorkspace(funcAddress, linearOutput);
 
-       
+        var results = await KickAllSimultaneouslyAsync(dumpPath, ct).ConfigureAwait(false);
+
         var allAnnotations = new List<RobotAnnotation>();
         foreach (var res in results)
         {
@@ -78,14 +78,14 @@ public sealed class ProcessAdmin
         Console.ForegroundColor = prev;
     }
 
-    private async Task<RobotResult[]> KickAllSimultaneouslyAsync(string linearOutput, CancellationToken ct)
+    private async Task<RobotResult[]> KickAllSimultaneouslyAsync(string dumpPath, CancellationToken ct)
     {
         var prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine("[ADMIN] Kicking all 30 robots simultaneously now!");
         Console.ForegroundColor = prev;
 
-        var executeTasks = _robots.Select(r => r.ExecuteAsync(linearOutput, ct));
+        var executeTasks = _robots.Select(r => r.ExecuteAsync(dumpPath, ct));
         
         var results = await Task.WhenAll(executeTasks).ConfigureAwait(false);
 

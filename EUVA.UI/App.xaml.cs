@@ -39,10 +39,20 @@ public partial class App : Application
                 tm.LoadTheme(path);
             }
         }
-        catch (Exception ex)
+            catch (Exception ex)
         {
             ThemeDiagnostics.Error($"Theme init failed: {ex.Message}. Using defaults.");
             ThemeManager.Instance.ApplyDefaultTheme();
         }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        try
+        {
+            EUVA.Core.Robots.WorkspaceManager.PurgeAllDumps();
+        }
+        catch { }
+        base.OnExit(e);
     }
 }

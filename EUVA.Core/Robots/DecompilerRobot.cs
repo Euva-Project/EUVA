@@ -12,18 +12,25 @@ public sealed class DecompilerRobot : RobotBase
 {
     public DecompilerRobot(RobotRole role, IRobotNetwork network) : base(role, network) { }
 
-    public override async Task<RobotResult> ExecuteAsync(string linearOutput, CancellationToken ct = default)
+    public override async Task<RobotResult> ExecuteAsync(string workspacePath, CancellationToken ct = default)
     {
         SetStatus(RobotStatus.Working);
 
         var prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine($"[WORK]   {Role,-28} # analyzing {linearOutput.Length} chars...");
+        Console.WriteLine($"[WORK]   {Role,-28} # analyzing dump...");
         Console.ForegroundColor = prev;
 
         try
         {
+            string linearOutput = System.IO.File.ReadAllText(workspacePath);
+
             var annotations = await DispatchByRole(linearOutput, ct).ConfigureAwait(false);
+
+            foreach (var ann in annotations)
+            {
+                WorkspaceManager.AppendAnnotation(workspacePath, $"[{Role}] {ann.Description}");
+            }
 
             double confidence = annotations.Count > 0 ? ComputeConfidence(annotations) : 1.0;
 

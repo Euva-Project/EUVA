@@ -1055,7 +1055,7 @@ public partial class MainWindow
                 var admin = new EUVA.Core.Robots.ProcessAdmin();
                 admin.InitializeFleet();
 
-                var annotations = await Task.Run(() => admin.RunPipelineAsync(linearSource));
+                var annotations = await Task.Run(() => admin.RunPipelineAsync(fileOffset, linearSource));
 
                 LogMessage($"[Decomp] Non-Linear Pipeline finished. Found {annotations.Count} annotations.");
             }
