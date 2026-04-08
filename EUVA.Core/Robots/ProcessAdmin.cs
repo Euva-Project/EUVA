@@ -85,9 +85,13 @@ public sealed class ProcessAdmin
         Console.WriteLine("[ADMIN] Kicking all 30 robots simultaneously now!");
         Console.ForegroundColor = prev;
 
-        var executeTasks = _robots.Select(r => r.ExecuteAsync(dumpPath, ct));
-        
-        var results = await Task.WhenAll(executeTasks).ConfigureAwait(false);
+        RobotResult[] results;
+        using (var ctx = new MappedDumpContext(dumpPath))
+        {
+            var executeTasks = _robots.Select(r => r.ExecuteAsync(ctx, dumpPath, ct));
+            
+            results = await Task.WhenAll(executeTasks).ConfigureAwait(false);
+        }
 
         prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Green;

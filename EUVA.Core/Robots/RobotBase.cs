@@ -103,7 +103,7 @@ public abstract class RobotBase
         }
     }
 
-    public abstract Task<RobotResult> ExecuteAsync(string linearOutput, CancellationToken ct = default);
+    public abstract Task<RobotResult> ExecuteAsync(MappedDumpContext context, string workspacePath, CancellationToken ct = default);
 
     public override string ToString() =>
         $"[Robot id={Id:N} role={Role} status={Status} peers={_peers.Count}]";
