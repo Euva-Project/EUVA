@@ -867,6 +867,11 @@ catch (Exception iatEx)
                     lock (_undoStack) { _transactionSteps.Push(interpreter.ChangesCount); }
                     SafeLog($"[Engine] Success. {interpreter.ChangesCount} operations committed.", Brushes.SpringGreen);
                 }
+
+                if (interpreter.WarningCount > 0)
+                    SafeLog($"[Engine] {interpreter.WarningCount} syntax warning(s) detected. Review [Syntax] messages above.", Brushes.Orange);
+                else
+                    SafeLog($"[Engine] Script finished. No syntax warnings.", Brushes.DarkGreen);
             }
             catch (Exception ex)
             {
@@ -882,6 +887,13 @@ catch (Exception iatEx)
         private readonly Dictionary<string, long> _variables = new();
         private int _currentLine = 0;
         public int ChangesCount { get; private set; } = 0;
+        public int WarningCount { get; private set; } = 0;
+
+        private void Warn(string message)
+        {
+            WarningCount++;
+            _parent.SafeLogThreadSafe($"[Syntax] Line {_currentLine + 1}: {message}", Brushes.Orange);
+        }
 
         public DslInterpreter(MainWindow parent, string[] lines)
         {
@@ -911,6 +923,29 @@ catch (Exception iatEx)
                 int hashIdx = line.IndexOf('#');
                 if (hashIdx >= 0) line = line.Substring(0, hashIdx).Trim();
                 if (string.IsNullOrEmpty(line)) { _currentLine++; continue; }
+
+                if (line.StartsWith("while ") && line.EndsWith(":"))
+                {
+                    string conditionExpr = line.Substring(6, line.Length - 7).Trim();
+                    int startOfBlock = _currentLine + 1;
+
+                    while (true)
+                    {
+                        bool condition = EvaluateExpression(conditionExpr) != 0;
+                        if (condition)
+                        {
+                            _currentLine = startOfBlock;
+                            ExecuteBlock(indent + 1);
+                        }
+                        else
+                        {
+                            _currentLine = startOfBlock;
+                            SkipBlock(indent + 1);
+                            break;
+                        }
+                    }
+                    continue;
+                }
 
                 if (line.StartsWith("if ") && line.EndsWith(":"))
                 {
@@ -1007,11 +1042,23 @@ catch (Exception iatEx)
         {
             if (line.Contains("="))
             {
-                var parts = line.Split('=', 2);
-                string varName = parts[0].Trim();
-                long val = EvaluateExpression(parts[1].Trim());
-                _variables[varName] = val;
-                return;
+                int eqIdx = line.IndexOf('=');
+                int parenIdx = line.IndexOf('(');
+                bool isAssignment = (parenIdx == -1 || eqIdx < parenIdx);
+
+                if (isAssignment && eqIdx + 1 < line.Length && line[eqIdx + 1] == '=')
+                    isAssignment = false;
+                if (isAssignment && eqIdx > 0 && (line[eqIdx - 1] == '!' || line[eqIdx - 1] == '<' || line[eqIdx - 1] == '>'))
+                    isAssignment = false;
+
+                if (isAssignment)
+                {
+                    var parts = line.Split('=', 2);
+                    string varName = parts[0].Trim();
+                    long val = EvaluateExpression(parts[1].Trim());
+                    _variables[varName] = val;
+                    return;
+                }
             }
 
             EvaluateExpression(line);
@@ -1035,11 +1082,13 @@ catch (Exception iatEx)
 
             if (_variables.TryGetValue(expr, out long varVal)) return varVal;
 
-            if (expr.Contains("+") || expr.Contains("-") || expr.Contains(">") || expr.Contains("<") || expr.Contains("==") || expr.Contains("!="))
+            if (expr.Contains("+") || expr.Contains("-") || expr.Contains(">") || expr.Contains("<") || expr.Contains("==") || expr.Contains("!=") || expr.Contains("&") || expr.Contains("|") || expr.Contains("^") || expr.Contains("<<") || expr.Contains(">>") || expr.Contains("*") || expr.Contains("/") || expr.Contains("%"))
             {
                 return _parent.EvaluateMathExpression(expr, _variables);
             }
 
+            if (!string.IsNullOrEmpty(expr) && expr != "0" && !expr.StartsWith("\""))
+                Warn($"Undefined identifier '{expr}'");
             return 0;
         }
 
@@ -1074,7 +1123,7 @@ catch (Exception iatEx)
             switch (name)
             {
                 case "find":
-                    if (args.Count < 1) return -1;
+                    if (args.Count < 1) { Warn("find() expects 1 argument: find(\"pattern\")"); return -1; }
                     string pattern = args[0].Trim('\"');
                     long found = _parent.FindSignature(pattern);
                     if (found != -1) _parent.SafeLogThreadSafe($"[Search] Signature found: 0x{found:X8}", Brushes.Violet);
@@ -1082,18 +1131,18 @@ catch (Exception iatEx)
                     return found;
 
                 case "offset":
-                    if (args.Count < 2) return 0;
+                    if (args.Count < 2) { Warn("offset() expects 2 arguments: offset(base, delta)"); return 0; }
                     return EvaluateExpression(args[0]) + EvaluateExpression(args[1]);
 
                 case "write":
-                    if (args.Count < 2) return 0;
+                    if (args.Count < 2) { Warn("write() expects 2 arguments: write(addr, \"bytes\")"); return 0; }
                     long writeAddr = EvaluateExpression(args[0]);
                     byte[] writeBytes = MainWindow.ParseBytes(args[1].Trim('\"'));
                     Patch(writeAddr, writeBytes);
                     return 1;
 
                 case "nop":
-                    if (args.Count < 2) return 0;
+                    if (args.Count < 2) { Warn("nop() expects 2 arguments: nop(addr, size)"); return 0; }
                     long nopAddr = EvaluateExpression(args[0]);
                     int nopSize = (int)EvaluateExpression(args[1]);
                     byte[] nops = new byte[nopSize];
@@ -1102,7 +1151,7 @@ catch (Exception iatEx)
                     return 1;
 
                 case "fill":
-                    if (args.Count < 3) return 0;
+                    if (args.Count < 3) { Warn("fill() expects 3 arguments: fill(addr, size, byte)"); return 0; }
                     long fillAddr = EvaluateExpression(args[0]);
                     int fillSize = (int)EvaluateExpression(args[1]);
                     byte fillByte = (byte)EvaluateExpression(args[2]);
@@ -1112,7 +1161,7 @@ catch (Exception iatEx)
                     return 1;
 
                 case "write_string":
-                    if (args.Count < 2) return 0;
+                    if (args.Count < 2) { Warn("write_string() expects 2+ arguments: write_string(addr, \"text\", [encoding])"); return 0; }
                     long strAddr = EvaluateExpression(args[0]);
                     string text = args[1].Trim('\"');
                     string encName = args.Count > 2 ? args[2].Trim('\"') : "utf8";
@@ -1121,7 +1170,7 @@ catch (Exception iatEx)
                     return 1;
 
                 case "assemble":
-                    if (args.Count < 2) return 0;
+                    if (args.Count < 2) { Warn("assemble() expects 2 arguments: assemble(addr, \"asm\")"); return 0; }
                     long asmAddr = EvaluateExpression(args[0]);
                     string asmCode = args[1].Trim('\"');
                     byte[]? asmBytes = AsmLogic.Assemble(asmCode, asmAddr);
@@ -1130,7 +1179,7 @@ catch (Exception iatEx)
                     return 1;
 
                 case "make_jmp":
-                    if (args.Count < 2) return 0;
+                    if (args.Count < 2) { Warn("make_jmp() expects 2 arguments: make_jmp(from, to)"); return 0; }
                     long from = EvaluateExpression(args[0]);
                     long to = EvaluateExpression(args[1]);
                     int rel = (int)(to - (from + 5));
@@ -1143,20 +1192,78 @@ catch (Exception iatEx)
                     Patch(from, jmp);
                     return 1;
 
+                case "make_call":
+                    if (args.Count < 2) { Warn("make_call() expects 2 arguments: make_call(from, to)"); return 0; }
+                    long callFrom = EvaluateExpression(args[0]);
+                    long callTo = EvaluateExpression(args[1]);
+                    int callRel = (int)(callTo - (callFrom + 5));
+                    byte[] callBytes = new byte[5];
+                    callBytes[0] = 0xE8;
+                    callBytes[1] = (byte)callRel;
+                    callBytes[2] = (byte)(callRel >> 8);
+                    callBytes[3] = (byte)(callRel >> 16);
+                    callBytes[4] = (byte)(callRel >> 24);
+                    Patch(callFrom, callBytes);
+                    return 1;
+
                 case "read_byte":
-                    if (args.Count < 1) return 0;
+                    if (args.Count < 1) { Warn("read_byte() expects 1 argument: read_byte(addr)"); return 0; }
                     return _parent.HexView.ReadByte(EvaluateExpression(args[0]));
 
+                case "read_word":
+                    if (args.Count < 1) { Warn("read_word() expects 1 argument: read_word(addr)"); return 0; }
+                    long wAddr = EvaluateExpression(args[0]);
+                    byte[] wBuf = new byte[2];
+                    for (int i = 0; i < 2; i++) wBuf[i] = _parent.HexView.ReadByte(wAddr + i);
+                    if (_parent.IsLittleEndian) return BitConverter.ToUInt16(wBuf, 0);
+                    else return (ushort)((wBuf[0] << 8) | wBuf[1]);
+
                 case "read_dword":
-                    if (args.Count < 1) return 0;
+                    if (args.Count < 1) { Warn("read_dword() expects 1 argument: read_dword(addr)"); return 0; }
                     long dwAddr = EvaluateExpression(args[0]);
                     byte[] dwBuf = new byte[4];
                     for (int i = 0; i < 4; i++) dwBuf[i] = _parent.HexView.ReadByte(dwAddr + i);
                     if (_parent.IsLittleEndian) return BitConverter.ToUInt32(dwBuf, 0);
                     else return (uint)((dwBuf[0] << 24) | (dwBuf[1] << 16) | (dwBuf[2] << 8) | dwBuf[3]);
 
+                case "read_qword":
+                    if (args.Count < 1) { Warn("read_qword() expects 1 argument: read_qword(addr)"); return 0; }
+                    long qAddr = EvaluateExpression(args[0]);
+                    byte[] qBuf = new byte[8];
+                    for (int i = 0; i < 8; i++) qBuf[i] = _parent.HexView.ReadByte(qAddr + i);
+                    if (_parent.IsLittleEndian) return (long)BitConverter.ToUInt64(qBuf, 0);
+                    else return (long)((ulong)qBuf[0] << 56 | (ulong)qBuf[1] << 48 | (ulong)qBuf[2] << 40 | (ulong)qBuf[3] << 32 | (ulong)qBuf[4] << 24 | (ulong)qBuf[5] << 16 | (ulong)qBuf[6] << 8 | qBuf[7]);
+
+                case "read_string":
+                    if (args.Count < 1) { Warn("read_string() expects 1+ arguments: read_string(addr, [max_len])"); return 0; }
+                    long rsAddr = EvaluateExpression(args[0]);
+                    int maxLen = args.Count > 1 ? (int)EvaluateExpression(args[1]) : 256;
+                    var sb = new System.Text.StringBuilder();
+                    for (int i = 0; i < maxLen; i++)
+                    {
+                        byte ch = _parent.HexView.ReadByte(rsAddr + i);
+                        if (ch == 0) break;
+                        sb.Append((char)ch);
+                    }
+                    _parent.SafeLogThreadSafe($"[String@0x{rsAddr:X}] \"{sb}\"", Brushes.Cyan);
+                    return rsAddr;
+
+                case "find_cave":
+                    if (args.Count < 1) { Warn("find_cave() expects 1+ arguments: find_cave(size, [byte])"); return -1; }
+                    int caveSize = (int)EvaluateExpression(args[0]);
+                    byte caveByte = args.Count > 1 ? (byte)EvaluateExpression(args[1]) : (byte)0x00;
+                    long fileLen = _parent.HexView.FileLength;
+                    int run = 0;
+                    for (long a = 0; a < fileLen; a++)
+                    {
+                        if (_parent.HexView.ReadByte(a) == caveByte) { run++; if (run >= caveSize) { long caveAddr = a - caveSize + 1; _parent.SafeLogThreadSafe($"[Cave] Found {caveSize}-byte cave at 0x{caveAddr:X8}", Brushes.Lime); return caveAddr; } }
+                        else run = 0;
+                    }
+                    _parent.SafeLogThreadSafe($"[Cave] No {caveSize}-byte cave found (byte=0x{caveByte:X2})", Brushes.Orange);
+                    return -1;
+
                 case "check_bytes":
-                    if (args.Count < 2) return 0;
+                    if (args.Count < 2) { Warn("check_bytes() expects 2 arguments: check_bytes(addr, \"pattern\")"); return 0; }
                     long chkAddr = EvaluateExpression(args[0]);
                     byte[] chkExpected = MainWindow.ParseBytes(args[1].Trim('\"'));
                     for (int i = 0; i < chkExpected.Length; i++)
@@ -1164,7 +1271,7 @@ catch (Exception iatEx)
                     return 1;
 
                 case "label":
-                    if (args.Count < 2) return 0;
+                    if (args.Count < 2) { Warn("label() expects 2 arguments: label(\"name\", addr)"); return 0; }
                     string labelName = args[0].Trim('\"');
                     long labelAddr = EvaluateExpression(args[1]);
                     _variables[labelName] = labelAddr;
@@ -1222,6 +1329,7 @@ catch (Exception iatEx)
                     return 1;
 
                 default:
+                    Warn($"Unknown function '{name}'");
                     return 0;
             }
         }
@@ -1256,18 +1364,26 @@ catch (Exception iatEx)
         try
         {
             string op = "";
-            if (expr.Contains("==")) op = "==";
+            if (expr.Contains("<<")) op = "<<";
+            else if (expr.Contains(">>")) op = ">>";
+            else if (expr.Contains("==")) op = "==";
             else if (expr.Contains("!=")) op = "!=";
             else if (expr.Contains(">=")) op = ">=";
             else if (expr.Contains("<=")) op = "<=";
             else if (expr.Contains(">")) op = ">";
             else if (expr.Contains("<")) op = "<";
+            else if (expr.Contains("&")) op = "&";
+            else if (expr.Contains("|")) op = "|";
+            else if (expr.Contains("^")) op = "^";
+            else if (expr.Contains("*")) op = "*";
+            else if (expr.Contains("/")) op = "/";
+            else if (expr.Contains("%")) op = "%";
             else if (expr.Contains("+")) op = "+";
             else if (expr.Contains("-")) op = "-";
 
             if (string.IsNullOrEmpty(op)) return 0;
 
-            var parts = expr.Split(new[] { op }, StringSplitOptions.RemoveEmptyEntries);
+            var parts = expr.Split(new[] { op }, 2, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length < 2) return 0;
 
             long left = ParseValue(parts[0].Trim(), variables);
@@ -1277,6 +1393,14 @@ catch (Exception iatEx)
             {
                 case "+": return left + right;
                 case "-": return left - right;
+                case "*": return left * right;
+                case "/": return right != 0 ? left / right : 0;
+                case "%": return right != 0 ? left % right : 0;
+                case "&": return left & right;
+                case "|": return left | right;
+                case "^": return left ^ right;
+                case "<<": return left << (int)right;
+                case ">>": return left >> (int)right;
                 case ">": return left > right ? 1 : 0;
                 case "<": return left < right ? 1 : 0;
                 case ">=": return left >= right ? 1 : 0;
