@@ -1,11 +1,177 @@
+log("PE header validation")
+
+mz = read_word(0x0)
+log("MZ magic = 0x" + mz)
+
+is_mz = check_bytes(0x0, "4D 5A")
+if is_mz:
+    log("MZ signature confirmed valid DOS header")
+else:
+    log("ERROR: Not a valid PE file! MZ header missing")
+
+
+log("PE/COFF locate")
+
+pe_off = read_dword(0x3C)
+label("pe_header", pe_off)
+log("PE header offset = 0x" + pe_off)
+
+pe_sig = read_dword(pe_off)
+log("PE signature = 0x" + pe_sig)
+
+is_pe = check_bytes(pe_off, "50 45 00 00")
+if is_pe:
+    log("PE\\0\\0 signature confirmed!")
+else:
+    log("WARNING: PE signature mismatch")
+
+log("COFF header analysis")
+
+machine_off = offset(pe_off, 4)
+machine = read_word(machine_off)
+log("Machine type = 0x" + machine)
+
+num_sections_off = offset(pe_off, 6)
+num_sections = read_word(num_sections_off)
+log("Number of sections = 0x" + num_sections)
+
+test_mul = 16 * 4
+log("Math test: 16 * 4 = 0x" + test_mul)
+
+test_div = 256 / 4
+log("Math test: 256 / 4 = 0x" + test_div)
+
+test_mod = 17 % 5
+log("Math test: 17 % 5 = 0x" + test_mod)
+
+test_and = 0xFF & 0x0F
+log("Bitwise test: 0xFF & 0x0F = 0x" + test_and)
+
+test_or = 0xA0 | 0x05
+log("Bitwise test: 0xA0 | 0x05 = 0x" + test_or)
+
+test_xor = 0xFF ^ 0xAA
+log("Bitwise test: 0xFF ^ 0xAA = 0x" + test_xor)
+
+test_shl = 1 << 8
+log("Bitwise test: 1 << 8 = 0x" + test_shl)
+
+test_shr = 0x100 >> 4
+log("Bitwise test: 0x100 >> 4 = 0x" + test_shr)
+
+log("Optional header")
+
+opt_off = offset(pe_off, 24)
+opt_magic = read_word(opt_off)
+log("Optional header magic = 0x" + opt_magic)
+
+if opt_magic == 0x20B:
+    log("Format: PE32+ (64-bit)")
+    imgbase = read_qword(offset(opt_off, 24))
+    log("ImageBase (QWORD) = 0x" + imgbase)
+else:
+    log("Format: PE32 (32-bit)")
+    imgbase = read_dword(offset(opt_off, 28))
+    log("ImageBase (DWORD) = 0x" + imgbase)
+
+log("DOS stub string")
+
 dos_msg = find("54 68 69 73 20 70 72 6F 67 72 61 6D")
+if dos_msg:
+    log("DOS stub message found at 0x" + dos_msg)
+    read_string(dos_msg, 64)
+else:
+    log("DOS stub message not present in this binary")
+
+log("Code cave hunt")
+
+cave_null = find_cave(32)
+if cave_null != -1:
+    log("Found 32-byte null cave at 0x" + cave_null)
+else:
+    log("No 32-byte null cave found")
+
+cave_cc = find_cave(16, 0xCC)
+if cave_cc != -1:
+    log("Found 16-byte INT3 cave at 0x" + cave_cc)
+else:
+    log("No 16-byte INT3 cave found")
+
+log("Comparison operators")
+
+a = 10
+b = 20
+if a < b:
+    log("PASS: 10 < 20")
+else:
+    log("FAIL: 10 < 20")
+
+if b > a:
+    log("PASS: 20 > 10")
+else:
+    log("FAIL: 20 > 10")
+
+if a != b:
+    log("PASS: 10 != 20")
+else:
+    log("FAIL: 10 != 20")
+
+c = 10
+if a == c:
+    log("PASS: 10 == 10")
+else:
+    log("FAIL: 10 == 10")
+
+if a >= c:
+    log("PASS: 10 >= 10")
+else:
+    log("FAIL: 10 >= 10")
+
+if a <= b:
+    log("PASS: 10 <= 20")
+else:
+    log("FAIL: 10 <= 20")
+
+log("While loop")
+
+scan_pos = 0
+count = 0
+cur_byte = read_byte(scan_pos)
+while cur_byte != 0:
+    count = count + 1
+    scan_pos = scan_pos + 1
+    cur_byte = read_byte(scan_pos)
+    if count == 16:
+        log("While loop: scanned 16 non-zero bytes, stopping early")
+        cur_byte = 0
+
+log("While loop finished. Total scanned: 0x" + count)
+
+log("Patch test")
 
 if dos_msg:
-    log("dos stub found starting transformation...")
+    orig = read_byte(dos_msg)
+    log("Original byte at DOS msg = 0x" + orig)
+
     fill(dos_msg, 38, 0x20)
-    write_string(dos_msg, "script loaded")
+    log("fill() applied: 38 bytes set to 0x20")
+
+    write_string(dos_msg, "EUVA patched")
+    log("write_string() applied")
+
     nop(offset(dos_msg, 30), 4)
-    
-    log("Patch successfully applied dos header modified!")
+    log("nop() applied: 4 bytes at offset+30")
+    write(offset(dos_msg, 34), "DE AD")
+    log("write() applied: DE AD at offset+34")
+
+    verify = check_bytes(offset(dos_msg, 34), "DE AD")
+    if verify:
+        log("PASS: check_bytes confirmed write")
+    else:
+        log("FAIL: check_bytes did not match")
+
+    log("All patch tests completed on DOS stub!")
 else:
-    log("Signature mismatch dos message not found.")
+    log("SKIP: no DOS stub to patch")
+
+log("All tests complete")
