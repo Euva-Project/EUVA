@@ -35,31 +35,7 @@ public sealed class PeImportScanner
     public unsafe List<DllImportInfo> Scan(byte* map, long fileLen, PeSectionInfo[] sections, int count, uint importDirectoryRva, int bitness)
     {
         var result = new List<DllImportInfo>();
-        try
-        {
-            byte[] bytes = new byte[fileLen];
-            Marshal.Copy((IntPtr)map, bytes, 0, (int)fileLen);
-            var peFile = AsmResolver.PE.File.PEFile.FromBytes(bytes);
-            var image = AsmResolver.PE.PEImage.FromFile(peFile);
 
-            foreach (var module in image.Imports)
-            {
-                var dllInfo = new DllImportInfo { DllName = module.Name ?? "Unknown" };
-                foreach (var symbol in module.Symbols)
-                {
-                    uint symRva = (uint)(symbol.AddressTableEntry?.Rva ?? 0);
-                    dllInfo.Entries.Add(new ImportEntry
-                    {
-                        Name = symbol.Name ?? (symbol.Ordinal != 0 ? $"Ordinal_{symbol.Ordinal}" : "Unknown"),
-                        IatAddress = (ulong)symRva,
-                        IatFileOffset = RvaToFileOffset(symRva, sections, count)
-                    });
-                }
-                result.Add(dllInfo);
-            }
-            if (result.Count > 0) return result;
-        }
-        catch { }
 
         if (importDirectoryRva == 0) return result;
 
