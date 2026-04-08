@@ -643,17 +643,21 @@
                                FontFamily="Segoe UI" FontSize="11"
                                FontWeight="SemiBold"/>
                 </Border>
-                <TextBox Grid.Row="1"
+                <RichTextBox Grid.Row="1"
                          x:Name="ConsoleLog"
                          IsReadOnly="True"
-                         TextWrapping="Wrap"
                          Background="Transparent"
                          Foreground="#CDD6F4"
                          BorderThickness="0"
                          FontFamily="JetBrains Mono, Cascadia Mono, Consolas"
                          FontSize="11"
                          Padding="10,5"
-                         VerticalScrollBarVisibility="Auto"/>
+                         VerticalScrollBarVisibility="Auto"
+                         IsDocumentEnabled="False">
+                    <FlowDocument>
+                        <Paragraph x:Name="ConsoleLogParagraph"/>
+                    </FlowDocument>
+                </RichTextBox>
             </Grid>
         </Border>
 

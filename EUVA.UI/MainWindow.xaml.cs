@@ -312,10 +312,13 @@ public partial class MainWindow : Window
     private void FlushLogBuffer(object? sender, EventArgs e)
     {
         if (_logQueue.IsEmpty) return;
-        var sb = new System.Text.StringBuilder();
         while (_logQueue.TryDequeue(out var entry))
-            sb.Append(entry.Text);
-        ConsoleLog.AppendText(sb.ToString());
+        {
+            var run = new System.Windows.Documents.Run(entry.Text);
+            if (entry.Color.CanFreeze && !entry.Color.IsFrozen) entry.Color.Freeze();
+            run.Foreground = entry.Color;
+            ConsoleLogParagraph.Inlines.Add(run);
+        }
         ConsoleLog.ScrollToEnd();
     }
 
@@ -1504,7 +1507,7 @@ catch (Exception iatEx)
             long targetOffset = long.Parse(hexClean, System.Globalization.NumberStyles.HexNumber);
             if (targetOffset < 0 || targetOffset >= HexView.FileLength)
             {
-                ConsoleLog.AppendText($"\n[Error] Offset 0x{targetOffset:X} out of bounds.");
+                Log($"[Error] Offset 0x{targetOffset:X} out of bounds.", Brushes.Red);
                 return;
             }
             HexView.SelectedOffset = targetOffset;
@@ -1513,10 +1516,10 @@ catch (Exception iatEx)
             SearchResultsGrid.Items.Clear();
             SearchResultsGrid.Items.Add(new SearchResult(
                 $"0x{targetOffset:X8}", "16 bytes", GetHexPreview(targetOffset), region));
-            ConsoleLog.AppendText($"\n[Jump] Moved to {region} at 0x{targetOffset:X8}");
+            Log($"[Jump] Moved to {region} at 0x{targetOffset:X8}", Brushes.LightBlue);
         }
-        catch (FormatException) { ConsoleLog.AppendText($"\n[Search Error] '{input}' is not a valid HEX string."); }
-        catch (Exception ex) { ConsoleLog.AppendText($"\n[Error] {ex.Message}"); }
+        catch (FormatException) { Log($"[Search Error] '{input}' is not a valid HEX string.", Brushes.Red); }
+        catch (Exception ex) { Log($"[Error] {ex.Message}", Brushes.Red); }
     }
 
     private void SearchInput_KeyDown(object sender, KeyEventArgs e)
@@ -1555,7 +1558,7 @@ catch (Exception iatEx)
                 if (index == 1)
                     Dispatcher.BeginInvoke(new Action(() => SearchInput.Focus()),
                         System.Windows.Threading.DispatcherPriority.Input);
-                ConsoleLog.AppendText($"\n[UI] Jump to {((TabItem)RightTabControl.SelectedItem).Header}");
+                Log($"[UI] Jump to {((TabItem)RightTabControl.SelectedItem).Header}", Brushes.Gray);
                 e.Handled = true;
             }
         }
@@ -1630,8 +1633,7 @@ catch (Exception iatEx)
         if (dialog.ShowDialog() != true) return;
         HotkeyManager.Load(dialog.FileName);
         UpdateGlobalConfig(htkPath: dialog.FileName);
-        ConsoleLog.AppendText($"\n[System] Hotkeys updated from: {Path.GetFileName(dialog.FileName)}");
-        ConsoleLog.ScrollToEnd();
+        Log($"[System] Hotkeys updated from: {Path.GetFileName(dialog.FileName)}", Brushes.LightGreen);
     }
 
     private void OnMediaHexClick(object sender, RoutedEventArgs e)
