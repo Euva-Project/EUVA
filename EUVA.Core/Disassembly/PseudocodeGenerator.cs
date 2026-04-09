@@ -112,7 +112,7 @@ public sealed class PseudocodeGenerator
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public unsafe PseudocodeLine[] DecompileFunction(BasicBlock[]? blocks,
-        byte* fileData, long fileLength, long baseAddress)
+        byte* fileData, long fileLength, long baseAddress, ExecutableRange[]? executableSections = null)
     {
         if (_pipeline != null && _pipeline.LastStructuredAst != null)
         {
@@ -122,7 +122,7 @@ public sealed class PseudocodeGenerator
         if (blocks == null) return Array.Empty<PseudocodeLine>();
 
         EnsurePipeline();
-        return _pipeline!.DecompileFunction(blocks, fileData, fileLength, baseAddress, _currentFuncName, AiFunctionSummary);
+        return _pipeline!.DecompileFunction(blocks, fileData, fileLength, baseAddress, _currentFuncName, AiFunctionSummary, executableSections);
     }
 
     public IrBlock[]? LastBlocks => _pipeline?.LastBlocks;

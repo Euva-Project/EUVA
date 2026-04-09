@@ -20,7 +20,9 @@ public sealed class DecompilerContext
     public Func<long, int, byte[]>? ReadMemoryOffset { get; }
     public Action<long, byte[]>? WriteMemoryOffset { get; }
     public Action<string, string>? Log { get; }
-    
+    public byte[]? OverrideFunctionBytes { get; set; }
+    public ExecutableRange[]? ExecutableSections { get; }
+
     public DecompilerContext(
         IrBlock[]? blocks,
         Dictionary<string, VariableSymbol> globalRenames,
@@ -31,6 +33,7 @@ public sealed class DecompilerContext
         Func<long, int, byte[]>? readMemoryOffset = null,
         Action<long, byte[]>? writeMemoryOffset = null,
         Action<string, string>? log = null,
+        ExecutableRange[]? executableSections = null,
         PseudocodeEmitter? emitter = null,
         StructuredNode? astRoot = null)
     {
@@ -43,6 +46,7 @@ public sealed class DecompilerContext
         ReadMemoryOffset = readMemoryOffset;
         WriteMemoryOffset = writeMemoryOffset;
         Log = log;
+        ExecutableSections = executableSections;
         Emitter = emitter;
         AstRoot = astRoot;
     }

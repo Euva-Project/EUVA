@@ -219,7 +219,7 @@ public sealed class DecompilerEngine
         
         if (pseudoGen != null && fileMap != null && blocks.Length > 0)
         {
-            result.FullText = pseudoGen.DecompileFunction(blocks, fileMap, fileLength, baseAddress);
+            result.FullText = pseudoGen.DecompileFunction(blocks, fileMap, fileLength, baseAddress, executableSections);
         }
 
         return result;

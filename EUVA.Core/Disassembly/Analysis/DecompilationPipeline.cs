@@ -121,7 +121,7 @@ public sealed class DecompilationPipeline
     
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public unsafe PseudocodeLine[] DecompileFunction(BasicBlock[] cfgBlocks,
-        byte* fileData, long fileLength, long baseAddress, string? funcName = null, string? summary = null)
+        byte* fileData, long fileLength, long baseAddress, string? funcName = null, string? summary = null, ExecutableRange[]? executableSections = null)
     {
         if (cfgBlocks.Length == 0) return Array.Empty<PseudocodeLine>();
 
@@ -179,7 +179,8 @@ public sealed class DecompilationPipeline
             userComments: UserComments,
             readMemoryOffset: safeMemReader,
             writeMemoryOffset: safeMemWriter,
-            log: ScriptLoader.Instance.OnColorLogMessage
+            log: ScriptLoader.Instance.OnColorLogMessage,
+            executableSections: executableSections
         );
 
         ScriptLoader.Instance.RunScripts(PassStage.PreLifting, ctx);
@@ -199,13 +200,28 @@ public sealed class DecompilationPipeline
                 IsReturn = cb.IsReturn,
             };
 
-            if (cb.ByteLength > 0 && fileData != null)
+            if (cb.ByteLength > 0)
             {
-                long offset = cb.StartOffset;
-                if (offset >= 0 && offset + cb.ByteLength <= fileLength)
+                if (ctx.OverrideFunctionBytes != null)
                 {
-                    irBlock.Instructions = lifter.LiftRawBlock(
-                        fileData + offset, cb.ByteLength, cb.StartOffset);
+                    int relativeOffset = (int)(cb.StartOffset - baseAddress);
+                    if (relativeOffset >= 0 && relativeOffset + cb.ByteLength <= ctx.OverrideFunctionBytes.Length)
+                    {
+                        fixed (byte* overPtr = ctx.OverrideFunctionBytes)
+                        {
+                            irBlock.Instructions = lifter.LiftRawBlock(
+                                overPtr + relativeOffset, cb.ByteLength, cb.StartOffset);
+                        }
+                    }
+                }
+                else if (fileData != null)
+                {
+                    long offset = cb.StartOffset;
+                    if (offset >= 0 && offset + cb.ByteLength <= fileLength)
+                    {
+                        irBlock.Instructions = lifter.LiftRawBlock(
+                            fileData + offset, cb.ByteLength, cb.StartOffset);
+                    }
                 }
             }
 
