@@ -311,8 +311,8 @@ public sealed class DecompilationPipeline
 
         var emitter = new PseudocodeEmitter(_imports, _strings, _userRenames, _stringExtractor);
         emitter.SetTypeMap(typeMap);
-        emitter.SetSignature(LastSignature);
-        emitter.SetStructs(LastStructs);
+        if (LastSignature != null) emitter.SetSignature(LastSignature);
+        if (LastStructs != null) emitter.SetStructs(LastStructs);
         emitter.SetVTables(LastVTables);
         emitter.SetSummary(summary);
         emitter.SetUserComments(UserComments);
@@ -326,8 +326,8 @@ public sealed class DecompilationPipeline
 
         var emitter = new PseudocodeEmitter(_imports, _strings, _userRenames, _stringExtractor);
         emitter.SetTypeMap(LastTypeMap);
-        emitter.SetSignature(LastSignature);
-        emitter.SetStructs(LastStructs);
+        if (LastSignature != null) emitter.SetSignature(LastSignature);
+        if (LastStructs != null) emitter.SetStructs(LastStructs);
         emitter.SetVTables(LastVTables);
         emitter.SetSummary(summary);
         emitter.SetUserComments(UserComments);
