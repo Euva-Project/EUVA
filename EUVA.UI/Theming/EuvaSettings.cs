@@ -37,6 +37,9 @@ public sealed class EuvaSettings
     [JsonPropertyName("aiCustomPrompt")]
     public string AiCustomPrompt { get; set; } = "Analyze this decompiled C code. Identify the roles of generic variables (v1, a2) and struct fields (field_1). Return ONLY a mapping of old names to new names. Do not use JSON, markdown, or explanations. Return strictly in this format: old_name=new_name. One per line.";
 
+    [JsonPropertyName("vtApiKey")]
+    public string VtApiKey { get; set; } = string.Empty;
+
 
 
     private static string SettingsFilePath =>
