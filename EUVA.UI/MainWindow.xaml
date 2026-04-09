@@ -395,6 +395,8 @@
                             <MenuItem Header="Select Theme…" Click="MenuThemeSelect_Click"/>
                         </MenuItem>
                         <MenuItem Header="Watch Script" Click="MenuWatchScript_Click"/>
+                        <Separator/>
+                        <MenuItem Header="VirusTotal API Key…" Click="MenuVtApiKey_Click"/>
                     </MenuItem>
 
                     <MenuItem x:Name="BtnEndian" Header="Endian: LE"
@@ -732,7 +734,7 @@
                          FontSize="11"
                          Padding="10,5"
                          VerticalScrollBarVisibility="Auto"
-                         IsDocumentEnabled="False">
+                         IsDocumentEnabled="True">
                     <FlowDocument>
                         <Paragraph x:Name="ConsoleLogParagraph"/>
                     </FlowDocument>

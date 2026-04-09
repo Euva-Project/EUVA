@@ -251,7 +251,7 @@ public partial class MainWindow : Window
     private PEMapper? _mapper;
     private DetectorManager _detectorManager = new();
     public static MainWindow Instance { get; private set; } = null!;
-    private readonly ConcurrentQueue<(string Text, Brush Color)> _logQueue = new();
+    private readonly ConcurrentQueue<(string Text, Brush Color, string? Url)> _logQueue = new();
     private readonly System.Windows.Threading.DispatcherTimer _logFlushTimer;
     private static readonly Regex _whitespaceRegex =
         new(@"\s+", RegexOptions.Compiled);
@@ -298,26 +298,56 @@ public partial class MainWindow : Window
             ByteMinimap.UpdateViewport(scrollLine, visibleLines, bytesPerLine);
     }
 
-    public void Log(string message, Brush color)
+    public void Log(string message, Brush color, string? url = null)
     {
         if (color.CanFreeze && !color.IsFrozen) color.Freeze();
-        string line = $"[{DateTime.Now:HH:mm:ss}] {message}\n";
-        _logQueue.Enqueue((line, color));
+        string line = string.IsNullOrEmpty(url) ? $"[{DateTime.Now:HH:mm:ss}] {message}\n" : message;
+        _logQueue.Enqueue((line, color, url));
     }
 
-    private void SafeLog(string msg, Brush color) => Log(msg, color);
+    private void SafeLog(string msg, Brush color, string? url = null) => Log(msg, color, url);
     private void LogMessage(string msg) => Log(msg, Brushes.White);
-    private void SafeLogThreadSafe(string msg, Brush c) => Log(msg, c);
+    private void SafeLogThreadSafe(string msg, Brush c, string? url = null) => Log(msg, c, url);
 
     private void FlushLogBuffer(object? sender, EventArgs e)
     {
         if (_logQueue.IsEmpty) return;
         while (_logQueue.TryDequeue(out var entry))
         {
-            var run = new System.Windows.Documents.Run(entry.Text);
-            if (entry.Color.CanFreeze && !entry.Color.IsFrozen) entry.Color.Freeze();
-            run.Foreground = entry.Color;
-            ConsoleLogParagraph.Inlines.Add(run);
+            if (!string.IsNullOrEmpty(entry.Url))
+            {
+                var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(entry.Text));
+                link.NavigateUri = new Uri(entry.Url);
+                link.Foreground = entry.Color;
+                link.TextDecorations = null; 
+                
+                link.MouseEnter += (s, e) => link.TextDecorations = TextDecorations.Underline;
+                link.MouseLeave += (s, e) => link.TextDecorations = null;
+                
+                link.RequestNavigate += (s, e) =>
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) 
+                        { 
+                            UseShellExecute = true 
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"[System] Failed to open link: {ex.Message}", Brushes.Red);
+                    }
+                    e.Handled = true;
+                };
+                ConsoleLogParagraph.Inlines.Add(link);
+            }
+            else
+            {
+                var run = new System.Windows.Documents.Run(entry.Text);
+                if (entry.Color.CanFreeze && !entry.Color.IsFrozen) entry.Color.Freeze();
+                run.Foreground = entry.Color;
+                ConsoleLogParagraph.Inlines.Add(run);
+            }
         }
         ConsoleLog.ScrollToEnd();
     }
@@ -544,7 +574,28 @@ catch (Exception iatEx)
             _loadedFilePath = filePath;
             OnFileLoaded();
             RefreshDisasmOnFileLoad();
-            RefreshDecompOnFileLoad(); 
+            RefreshDecompOnFileLoad();
+
+            var vtKey = Theming.EuvaSettings.Default.VtApiKey;
+            if (!string.IsNullOrWhiteSpace(vtKey))
+            {
+                var capturedPath = filePath;
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        string sha256 = EUVA.Core.Services.VirusTotalClient.ComputeSha256(capturedPath);
+                        using var vt = new EUVA.Core.Services.VirusTotalClient(vtKey, (msg, color, url) =>
+                            Dispatcher.BeginInvoke(() => SafeLog(msg, 
+                                (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(color)!, url)));
+                        await vt.QueryHashAsync(sha256);
+                    }
+                    catch (Exception ex)
+                    {
+                        Dispatcher.BeginInvoke(() => LogMessage($"[VT] {ex.Message}"));
+                    }
+                });
+            }
         }
         catch (Exception ex)
         {
@@ -1703,6 +1754,65 @@ catch (Exception iatEx)
         StartScriptWatcher(dialog.FileName);
         if (sender is MenuItem mi) mi.Header = $"Watching: {Path.GetFileName(dialog.FileName)}";
         Log($"[UI] Target script set to: {Path.GetFileName(dialog.FileName)}", Brushes.Cyan);
+    }
+
+    private void MenuVtApiKey_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new Window
+        {
+            Title = "VirusTotal API Key",
+            Width = 500, Height = 160,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this,
+            ResizeMode = ResizeMode.NoResize,
+            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x2E)),
+        };
+
+        var stack = new StackPanel { Margin = new Thickness(16) };
+
+        var label = new TextBlock
+        {
+            Text = "Enter your VirusTotal API key:",
+            Foreground = new SolidColorBrush(Color.FromRgb(0xCD, 0xD6, 0xF4)),
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        stack.Children.Add(label);
+
+        var textBox = new TextBox
+        {
+            Text = Theming.EuvaSettings.Default.VtApiKey,
+            FontFamily = new FontFamily("JetBrains Mono, Cascadia Mono, Consolas"),
+            FontSize = 11,
+            Padding = new Thickness(6, 4, 6, 4)
+        };
+        stack.Children.Add(textBox);
+
+        var btnPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+
+        var btnSave = new Button { Content = "Save", Width = 80, Margin = new Thickness(0, 0, 8, 0) };
+        btnSave.Click += (_, _) =>
+        {
+            Theming.EuvaSettings.Default.VtApiKey = textBox.Text.Trim();
+            Theming.EuvaSettings.Default.Save();
+            Log("[VT] API key saved.", Brushes.LightGreen);
+            win.DialogResult = true;
+            win.Close();
+        };
+        btnPanel.Children.Add(btnSave);
+
+        var btnCancel = new Button { Content = "Cancel", Width = 80 };
+        btnCancel.Click += (_, _) => { win.DialogResult = false; win.Close(); };
+        btnPanel.Children.Add(btnCancel);
+
+        stack.Children.Add(btnPanel);
+        win.Content = stack;
+        win.ShowDialog();
     }
 
     private void StartScriptWatcher(string path)

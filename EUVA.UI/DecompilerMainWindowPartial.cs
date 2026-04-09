@@ -1040,7 +1040,6 @@ public partial class MainWindow
         };
         panel.Children.Add(aiSettingsBtn);
 
-        
         _pseudocodeGen.RenameApplied += (s, e) => 
         {
             if (e is VariableSymbol sym && sym.IsAiGenerated)
