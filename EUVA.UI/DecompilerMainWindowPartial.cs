@@ -497,6 +497,13 @@ public partial class MainWindow
         }
     }
 
+    private static readonly SolidColorBrush _xMenuBg      = FreezeB(new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x25)));
+    private static readonly SolidColorBrush _xMenuBorder  = FreezeB(new SolidColorBrush(Color.FromRgb(0x45, 0x47, 0x5A)));
+    private static readonly SolidColorBrush _xMenuFg      = FreezeB(new SolidColorBrush(Color.FromRgb(0xCD, 0xD6, 0xF4)));
+    private static readonly SolidColorBrush _xMenuHoverBg = FreezeB(new SolidColorBrush(Color.FromRgb(0x31, 0x32, 0x44)));
+    private static readonly SolidColorBrush _xMenuHoverFg = FreezeB(new SolidColorBrush(Color.FromRgb(0x89, 0xB4, 0xFA)));
+    private static SolidColorBrush FreezeB(SolidColorBrush b) { b.Freeze(); return b; }
+
     private void HandleFindXrefs(long fileOffset)
     {
         uint rva = FileOffsetToRva(fileOffset);
@@ -509,13 +516,60 @@ public partial class MainWindow
             return;
         }
 
-        var menu = new ContextMenu();
+        var menu = new ContextMenu
+        {
+            Background = _xMenuBg,
+            Foreground = _xMenuFg,
+            BorderBrush = _xMenuBorder,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(0, 4, 0, 4),
+            HasDropShadow = true
+        };
+
+        var cmTemplate = new ControlTemplate(typeof(ContextMenu));
+        var borderFactory = new FrameworkElementFactory(typeof(Border));
+        borderFactory.SetValue(Border.BackgroundProperty, _xMenuBg);
+        borderFactory.SetValue(Border.BorderBrushProperty, _xMenuBorder);
+        borderFactory.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        borderFactory.SetValue(Border.PaddingProperty, new Thickness(0, 4, 0, 4));
+        borderFactory.SetValue(Border.SnapsToDevicePixelsProperty, true);
+        var presenterFactory = new FrameworkElementFactory(typeof(ItemsPresenter));
+        presenterFactory.SetValue(KeyboardNavigation.DirectionalNavigationProperty, KeyboardNavigationMode.Cycle);
+        borderFactory.AppendChild(presenterFactory);
+        cmTemplate.VisualTree = borderFactory;
+        menu.Template = cmTemplate;
+
         foreach (var srcRva in sources)
         {
             long srcOff = RvaToFileOffset(srcRva);
             if (srcOff == -1) continue;
 
-            var mi = new MenuItem { Header = $"0x{srcRva:X8} (Offset: 0x{srcOff:X8})" };
+            var mi = new MenuItem
+            {
+                Header = $"0x{srcRva:X8} (Offset: 0x{srcOff:X8})",
+                Foreground = _xMenuFg,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+            };
+
+            var miTemplate = new ControlTemplate(typeof(MenuItem));
+            var bd = new FrameworkElementFactory(typeof(Border), "Bd");
+            bd.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+            bd.SetValue(Border.PaddingProperty, new Thickness(10, 4, 10, 4));
+            bd.SetValue(Border.SnapsToDevicePixelsProperty, true);
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+            cp.SetValue(ContentPresenter.ContentSourceProperty, "Header");
+            cp.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+            cp.SetValue(ContentPresenter.RecognizesAccessKeyProperty, true);
+            bd.AppendChild(cp);
+            miTemplate.VisualTree = bd;
+
+            var ht = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
+            ht.Setters.Add(new Setter(Border.BackgroundProperty, _xMenuHoverBg, "Bd"));
+            ht.Setters.Add(new Setter(MenuItem.ForegroundProperty, _xMenuHoverFg));
+            miTemplate.Triggers.Add(ht);
+            mi.Template = miTemplate;
+
             mi.Click += (s, e) => {
                 _decompDisasmView?.ScrollToOffset(srcOff);
                 LogMessage($"[Xref] Jumped to reference at 0x{srcRva:X8}");
