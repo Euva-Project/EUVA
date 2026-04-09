@@ -330,6 +330,19 @@ public partial class MainWindow : Window
             LogMessage(msg); 
         };
 
+        ScriptLoader.Instance.OnColorLogMessage = (msg, hexColor) =>
+        {
+            try
+            {
+                var brush = (Brush)new BrushConverter().ConvertFromString(hexColor)!;
+                SafeLogThreadSafe(msg, brush);
+            }
+            catch
+            {
+                LogMessage(msg);
+            }
+        };
+
         LogMessage("[System] Initializing environment...");
         HotkeyManager.LoadDefaults();
         ThemeManager.Instance.ApplyDefaultTheme();

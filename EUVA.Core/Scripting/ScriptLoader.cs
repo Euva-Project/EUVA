@@ -16,6 +16,7 @@ public sealed class ScriptLoader
 {
     public static readonly ScriptLoader Instance = new();
     public Action<string>? OnLogMessage { get; set; }
+    public Action<string, string>? OnColorLogMessage { get; set; }
 
     private readonly List<ScriptRunner<IDecompilerPass>> _compiledRunners = new();
     private readonly Dictionary<PassStage, List<IDecompilerPass>> _activePasses = new();
