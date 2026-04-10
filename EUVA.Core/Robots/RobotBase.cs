@@ -105,6 +105,19 @@ public abstract class RobotBase
 
     public abstract Task<RobotResult> ExecuteAsync(MappedDumpContext context, string workspacePath, CancellationToken ct = default);
 
+    protected async Task<AdminResponse> RequestAdminHelpAsync(string missingKey, CancellationToken ct)
+    {
+        SetStatus(RobotStatus.AwaitingAdminResponse);
+        try
+        {
+            return await _network.Admin.OnRobotErrorAsync(Id, Role, missingKey).ConfigureAwait(false);
+        }
+        finally
+        {
+            SetStatus(RobotStatus.Working);
+        }
+    }
+
     public override string ToString() =>
         $"[Robot id={Id:N} role={Role} status={Status} peers={_peers.Count}]";
 }

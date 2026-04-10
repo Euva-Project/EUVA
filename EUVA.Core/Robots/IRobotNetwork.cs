@@ -12,4 +12,6 @@ public interface IRobotNetwork
     Task ReceiveHelloAsync(HelloPacket packet);
 
     bool AllRobotsReady { get; }
+
+    IProcessAdmin Admin { get; }
 }

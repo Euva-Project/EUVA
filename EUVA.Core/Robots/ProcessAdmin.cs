@@ -8,14 +8,14 @@ using System.Threading.Tasks;
 
 namespace EUVA.Core.Robots;
 
-public sealed class ProcessAdmin
+public sealed class ProcessAdmin : IProcessAdmin
 {
     private readonly RobotNetwork _network;
     private readonly List<RobotBase> _robots;
 
     public ProcessAdmin()
     {
-        _network = new RobotNetwork();
+        _network = new RobotNetwork(this);
         _robots  = new List<RobotBase>(30);
     }
 
@@ -99,5 +99,39 @@ public sealed class ProcessAdmin
         Console.ForegroundColor = prev;
 
         return results;
+    }
+
+    public Task<AdminResponse> OnRobotErrorAsync(Guid robotId, RobotRole role, string missingKey)
+    {
+        var prev = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"[ADMIN:KDB] Robot {robotId.ToString().Substring(0, 8)} ({role}) reported missing key: '{missingKey}'");
+        Console.ForegroundColor = prev;
+
+        bool found = false;
+        byte[]? payload = null;
+
+        if (missingKey.Contains("TestSig"))
+        {
+            found = true;
+            payload = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF }; 
+        }
+
+        if (found)
+        {
+            prev = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"[ADMIN:KDB] Found data for '{missingKey}'. Passing payload to Robot.");
+            Console.ForegroundColor = prev;
+            return Task.FromResult(new AdminResponse(AdminDecision.InheritData, payload));
+        }
+        else
+        {
+            prev = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"[ADMIN:KDB] Key '{missingKey}' not found in KDB. Instructing Robot to Ignore.");
+            Console.ForegroundColor = prev;
+            return Task.FromResult(new AdminResponse(AdminDecision.Ignore));
+        }
     }
 }
