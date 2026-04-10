@@ -64,6 +64,21 @@ public sealed class RobotNetwork : IRobotNetwork
         }
     }
 
+    public async Task<RobotDirectResponse> SendDirectCommandAsync(Guid targetId, RobotDirectCommand command)
+    {
+        if (_registered.TryGetValue(targetId, out var target))
+        {
+            var prev = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.DarkMagenta;
+            Console.WriteLine($"[CMD] {command.SenderRole,-18} >>> {target.Role} :: Action: {command.Action}");
+            Console.ForegroundColor = prev;
+
+            return await target.OnDirectCommandReceivedAsync(command).ConfigureAwait(false);
+        }
+
+        return new RobotDirectResponse { Success = false };
+    }
+
     public int RegisteredCount => _registered.Count;
     public int ReadyCount      => _helloSent.Count;
 
