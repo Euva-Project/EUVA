@@ -22,6 +22,7 @@ public abstract class RobotBase
 
     public IReadOnlyDictionary<Guid, RobotRole> KnownPeers => _peers;
 
+    protected readonly ConcurrentDictionary<Guid, RobotStatus> _peerStatuses = new();
 
     private volatile RobotStatus _status = RobotStatus.Initializing;
     public RobotStatus Status => _status;
@@ -133,6 +134,35 @@ public abstract class RobotBase
             Payload = payload
         };
         return await _network.SendDirectCommandAsync(targetId, command).ConfigureAwait(false);
+    }
+
+    public virtual Task OnPeerStatusChangeAsync(Guid peerId, RobotStatus newStatus)
+    {
+        _peerStatuses[peerId] = newStatus;
+        return Task.CompletedTask;
+    }
+
+    protected async Task WaitUntilAllPeersDoneAsync(CancellationToken ct)
+    {
+        SetStatus(RobotStatus.Done);
+        await _network.BroadcastStatusAsync(Id, RobotStatus.Done).ConfigureAwait(false);
+        while (!AllKnownPeersDone())
+        {
+            await Task.Delay(50, ct).ConfigureAwait(false);
+        }
+    }
+
+    private bool AllKnownPeersDone()
+    {
+        foreach (var peerId in _peers.Keys)
+        {
+            if (!_peerStatuses.TryGetValue(peerId, out var status))
+                return false;
+            
+            if (status != RobotStatus.Done && status != RobotStatus.Verified && status != RobotStatus.Faulted)
+                return false;
+        }
+        return true;
     }
 
     public override string ToString() =>

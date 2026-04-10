@@ -43,7 +43,13 @@ public sealed class DecompilerRobot : RobotBase
                 Confidence  = confidence,
             };
 
-            SetStatus(RobotStatus.Done);
+            var prevLog = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine($"[MSG] {Role,-28} waiting for peers at the finish line...");
+            Console.ForegroundColor = prevLog;
+            
+            await WaitUntilAllPeersDoneAsync(ct).ConfigureAwait(false);
+
             return result;
         }
         catch (OperationCanceledException)

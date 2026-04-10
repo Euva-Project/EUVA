@@ -16,4 +16,5 @@ public interface IRobotNetwork
     IProcessAdmin Admin { get; }
 
     Task<RobotDirectResponse> SendDirectCommandAsync(Guid targetId, RobotDirectCommand command);
+    Task BroadcastStatusAsync(Guid senderId, RobotStatus status);
 }
