@@ -15,26 +15,14 @@ public sealed class RobotResult
 
     public string Summary { get; init; } = string.Empty;
 
-    public IReadOnlyList<RobotAnnotation> Annotations { get; init; } = [];
+    public int AnnotationCount { get; init; }
 
     public DateTime CompletedAt { get; init; } = DateTime.UtcNow;
 
     public double Confidence { get; init; } = 1.0;
 
-    public override string ToString() =>
-        $"[Result robot={RobotId:N} role={Role} findings={HasFindings} annotations={Annotations.Count} confidence={Confidence:P0}]";
-}
-
-public sealed class RobotAnnotation
-{
-    public RobotRole Category { get; init; }
-
-    public string Location { get; init; } = string.Empty;
-
-    public string Description { get; init; } = string.Empty;
-
-    public string? ReplacementCode { get; init; }
+    public byte[]? VerificationKey { get; init; }
 
     public override string ToString() =>
-        $"[Annotation category={Category} loc={Location} hasReplacement={ReplacementCode is not null}]";
+        $"[Result robot={RobotId:N} role={Role} findings={HasFindings} annotations={AnnotationCount} confidence={Confidence:P0}]";
 }

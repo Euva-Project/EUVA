@@ -9,11 +9,16 @@ namespace EUVA.Core.Robots;
 
 public sealed class DecompilerRobot : RobotBase
 {
+    private string _workspacePath = string.Empty;
+    private int _annotationCount = 0;
+
     public DecompilerRobot(RobotRole role, IRobotNetwork network) : base(role, network) { }
 
     public override async Task<RobotResult> ExecuteAsync(MappedDumpContext ctx, string workspacePath, CancellationToken ct = default)
     {
         SetStatus(RobotStatus.Working);
+        _workspacePath = workspacePath;
+        _annotationCount = 0;
 
         var prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Yellow;
@@ -22,25 +27,22 @@ public sealed class DecompilerRobot : RobotBase
 
         try
         {
-            List<RobotAnnotation> annotations;
+            await DispatchByRole(ctx, ct).ConfigureAwait(false);
 
-            annotations = await DispatchByRole(ctx, ct).ConfigureAwait(false);
+            double confidence = _annotationCount > 0 ? Math.Min(1.0, _annotationCount * 0.3) : 1.0;
+            string summaryText = $"{Role}: {_annotationCount} annotation(s)";
 
-            foreach (var ann in annotations)
-            {
-                WorkspaceManager.AppendAnnotation(workspacePath, $"[{Role}] {ann.Description}");
-            }
-
-            double confidence = annotations.Count > 0 ? ComputeConfidence(annotations) : 1.0;
+            byte[] verifKey = await _network.Admin.Verifier.RequestVerificationKeyAsync(Id, Role, _annotationCount, summaryText).ConfigureAwait(false);
 
             var result = new RobotResult
             {
-                RobotId     = Id,
-                Role        = Role,
-                HasFindings = annotations.Count > 0,
-                Summary     = BuildSummary(annotations),
-                Annotations = annotations,
-                Confidence  = confidence,
+                RobotId         = Id,
+                Role            = Role,
+                HasFindings     = _annotationCount > 0,
+                Summary         = summaryText,
+                AnnotationCount = _annotationCount,
+                Confidence      = confidence,
+                VerificationKey = verifKey
             };
 
             var prevLog = Console.ForegroundColor;
@@ -71,7 +73,13 @@ public sealed class DecompilerRobot : RobotBase
         }
     }
 
-    private Task<List<RobotAnnotation>> DispatchByRole(MappedDumpContext ctx, CancellationToken ct) =>
+    private void Emit(long offset, int line, string action, string context)
+    {
+        WorkspaceManager.WriteAnnotation(_workspacePath, Role, offset, line, action, context);
+        Interlocked.Increment(ref _annotationCount);
+    }
+
+    private Task DispatchByRole(MappedDumpContext ctx, CancellationToken ct) =>
         Role switch
         {
             RobotRole.YaraScanner              => ScanYaraPatterns(ctx, ct),
@@ -104,13 +112,12 @@ public sealed class DecompilerRobot : RobotBase
             RobotRole.XrefAnalyzer             => AnalyzeXrefs(ctx, ct),
             RobotRole.WeightChainValidator     => ValidateWeightChain(ctx, ct),
             RobotRole.VerificationRelay        => RelayVerification(ctx, ct),
-            _                                  => Task.FromResult(new List<RobotAnnotation>()),
+            _                                  => Task.CompletedTask,
         };
 
-    private async Task<List<RobotAnnotation>> ScanYaraPatterns(MappedDumpContext ctx, CancellationToken ct)
+    private async Task ScanYaraPatterns(MappedDumpContext ctx, CancellationToken ct)
     {
         await Task.Yield();
-        var annotations = new List<RobotAnnotation>();
 
         //debug
         string missingKey = "TestSig_01";
@@ -127,7 +134,7 @@ public sealed class DecompilerRobot : RobotBase
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"[ROBOT:ACK] {Role} inherited payload of {response.Payload.Length} bytes. Processing...");
             Console.ForegroundColor = prev;
-            annotations.Add(Annotate($"Inherited KDB YARA payload for {missingKey}"));
+            Emit(0x0000, 0, "YARA_MATCH", $"Inherited KDB payload for {missingKey}");
         }
         else
         {
@@ -136,84 +143,72 @@ public sealed class DecompilerRobot : RobotBase
             Console.WriteLine($"[ROBOT:ACK] {Role} was instructed to Ignore missing '{missingKey}'. Skipping.");
             Console.ForegroundColor = prev;
         }
-
-        return annotations;
     }
-    private async Task<List<RobotAnnotation>> MatchHexSignatures(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> AnalyzeBinaryPatterns(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
 
-    private async Task<List<RobotAnnotation>> TraceApiChains(MappedDumpContext ctx, CancellationToken ct)
+    private async Task MatchHexSignatures(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task AnalyzeBinaryPatterns(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+
+    private async Task TraceApiChains(MappedDumpContext ctx, CancellationToken ct)
     {
         await Task.Yield();
-        var annotations = new List<RobotAnnotation>();
 
         ctx.RunScoped(span => 
         {
             if (KmpContainsAny(span, "CreateFile", "ReadFile", "WriteFile", "CloseHandle"))
-                annotations.Add(Annotate("File IO API chain detected CreateFile / ReadFile / WriteFile."));
+                Emit(0x0000, 0, "API_CHAIN", "FileIO: CreateFile/ReadFile/WriteFile");
 
             if (KmpContainsAny(span, "VirtualAlloc", "VirtualProtect", "VirtualFree"))
-                annotations.Add(Annotate("Memory API chain detected — possible injected code or shellcode."));
+                Emit(0x0000, 0, "API_CHAIN", "Memory: VirtualAlloc/VirtualProtect/VirtualFree");
 
             if (KmpContainsAny(span, "CreateThread", "OpenThread", "ResumeThread"))
-                annotations.Add(Annotate("Thread management API chain detected."));
+                Emit(0x0000, 0, "API_CHAIN", "Thread: CreateThread/OpenThread/ResumeThread");
 
             if (KmpContainsAny(span, "RegOpenKey", "RegSetValue", "RegQueryValue"))
-                annotations.Add(Annotate("Registry API chain detected — persistence mechanism likely."));
+                Emit(0x0000, 0, "API_CHAIN", "Registry: RegOpenKey/RegSetValue/RegQueryValue");
 
             if (KmpContainsAny(span, "WSAStartup", "connect(", "send(", "recv("))
-                annotations.Add(Annotate("Network API chain detected Winsock."));
+                Emit(0x0000, 0, "API_CHAIN", "Network: WSAStartup/connect/send/recv");
         });
-
-        return annotations;
     }
 
-    private async Task<List<RobotAnnotation>> ExtractMetadata(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> AnnotateIrLifting(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> AnalyzeControlFlow(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> AnalyzeDataFlow(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
+    private async Task ExtractMetadata(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task AnnotateIrLifting(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task AnalyzeControlFlow(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task AnalyzeDataFlow(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
 
-    private async Task<List<RobotAnnotation>> InferTypes(MappedDumpContext ctx, CancellationToken ct)
+    private async Task InferTypes(MappedDumpContext ctx, CancellationToken ct)
     {
         await Task.Yield();
-        var annotations = new List<RobotAnnotation>();
 
         ctx.RunScoped(span => 
         {
             if (KmpContainsAny(span, "int ", "unsigned int"))
-                annotations.Add(Annotate("Suggest promoting 'int' / 'unsigned int' to std::int32_t / std::uint32_t for C++ output.",
-                    replacementCode: "// Type promotion: int > std::int32_t"));
+                Emit(0x0000, 0, "TYPE_PROMOTE", "int/unsigned int -> KDB_LOOKUP_REQUIRED");
         });
-
-        return annotations;
     }
 
-    private async Task<List<RobotAnnotation>> AnalyzeCallingConventions(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
+    private async Task AnalyzeCallingConventions(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
 
-    private async Task<List<RobotAnnotation>> ExtractStrings(MappedDumpContext ctx, CancellationToken ct)
+    private async Task ExtractStrings(MappedDumpContext ctx, CancellationToken ct)
     {
         await Task.Yield();
-        var annotations = new List<RobotAnnotation>();
 
         ctx.RunScoped(span => 
         {
             int stringCount = KmpCountOccurrences(span, "\"");
             if (stringCount > 0)
-                annotations.Add(Annotate($"Detected {stringCount / 2} string literals in linear output."));
+                Emit(0x0000, 0, "STRING_COUNT", $"{stringCount / 2} string literals detected");
         });
-
-        return annotations;
     }
 
-    private async Task<List<RobotAnnotation>> AnalyzeEntropy(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> TraceImports(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> TraceExports(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> AnnotateSsa(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
+    private async Task AnalyzeEntropy(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task TraceImports(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task TraceExports(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task AnnotateSsa(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
 
-    private async Task<List<RobotAnnotation>> DetectLoops(MappedDumpContext ctx, CancellationToken ct)
+    private async Task DetectLoops(MappedDumpContext ctx, CancellationToken ct)
     {
         await Task.Yield();
-        var annotations = new List<RobotAnnotation>();
         
         ctx.RunScoped(span => 
         {
@@ -222,56 +217,35 @@ public sealed class DecompilerRobot : RobotBase
             int doCount    = KmpCountOccurrences(span, "do {");
 
             if (forCount + whileCount + doCount > 0)
-                annotations.Add(Annotate(
-                    $"Detected {forCount} for-loop(s), {whileCount} while-loop(s), {doCount} do-while(s)."));
+                Emit(0x0000, 0, "LOOP_DETECT", $"for={forCount} while={whileCount} do={doCount}");
         });
-
-        return annotations;
     }
 
-    private async Task<List<RobotAnnotation>> DetectSwitches(MappedDumpContext ctx, CancellationToken ct)
+    private async Task DetectSwitches(MappedDumpContext ctx, CancellationToken ct)
     {
         await Task.Yield();
-        var annotations = new List<RobotAnnotation>();
         
         ctx.RunScoped(span => 
         {
             int switchCount = KmpCountOccurrences(span, "switch (");
             if (switchCount > 0)
-                annotations.Add(Annotate($"Detected {switchCount} switch statement(s)."));
+                Emit(0x0000, 0, "SWITCH_DETECT", $"count={switchCount}");
         });
-
-        return annotations;
     }
 
-    private async Task<List<RobotAnnotation>> ReconstructStructs(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> DetectVTables(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> RecognizeIdioms(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> EliminateDeadCode(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> PropagateConstants(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> SimplifyExpressions(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> GuessSemantics(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> MatchFingerprints(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> EnhancePseudocode(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> ApplyNaming(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> AnalyzeXrefs(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> ValidateWeightChain(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-    private async Task<List<RobotAnnotation>> RelayVerification(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); return []; }
-
-    private RobotAnnotation Annotate(string description, string? replacementCode = null) =>
-        new()
-        {
-            Category        = Role,
-            Location        = string.Empty,
-            Description     = description,
-            ReplacementCode = replacementCode,
-        };
-
-    private static string BuildSummary(List<RobotAnnotation> annotations) =>
-        annotations.Count == 0 ? "No findings." : string.Join(" | ", annotations.ConvertAll(a => a.Description));
-
-    private static double ComputeConfidence(List<RobotAnnotation> annotations) =>
-        System.Math.Min(1.0, annotations.Count * 0.3);
+    private async Task ReconstructStructs(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task DetectVTables(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task RecognizeIdioms(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task EliminateDeadCode(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task PropagateConstants(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task SimplifyExpressions(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task GuessSemantics(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task MatchFingerprints(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task EnhancePseudocode(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task ApplyNaming(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task AnalyzeXrefs(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task ValidateWeightChain(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
+    private async Task RelayVerification(MappedDumpContext ctx, CancellationToken ct) { await Task.Yield(); }
 
     private static unsafe int KmpCountOccurrences(ReadOnlySpan<byte> text, string patternString)
     {

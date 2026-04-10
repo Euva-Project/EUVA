@@ -13,7 +13,7 @@ public abstract class RobotBase
     public RobotRole  Role { get; }
 
 
-    private readonly IRobotNetwork _network;
+    protected readonly IRobotNetwork _network;
 
     private readonly ConcurrentDictionary<Guid, RobotRole> _peers = new();
 
