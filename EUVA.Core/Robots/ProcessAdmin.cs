@@ -13,8 +13,11 @@ public sealed class ProcessAdmin : IProcessAdmin
     private readonly RobotNetwork _network;
     private readonly List<RobotBase> _robots;
 
+    public RobotVerifier Verifier { get; }
+
     public ProcessAdmin()
     {
+        Verifier = new RobotVerifier();
         _network = new RobotNetwork(this);
         _robots  = new List<RobotBase>(30);
     }
@@ -36,7 +39,7 @@ public sealed class ProcessAdmin : IProcessAdmin
         Console.ForegroundColor = prev;
     }
 
-    public async Task<List<RobotAnnotation>> RunPipelineAsync(long funcAddress, string linearOutput, CancellationToken ct = default)
+    public async Task<string> RunPipelineAsync(long funcAddress, string linearOutput, CancellationToken ct = default)
     {
         await InvokeHelloPhaseAsync(ct).ConfigureAwait(false);
 
@@ -44,16 +47,42 @@ public sealed class ProcessAdmin : IProcessAdmin
 
         var results = await KickAllSimultaneouslyAsync(dumpPath, ct).ConfigureAwait(false);
 
-        var allAnnotations = new List<RobotAnnotation>();
+        var prev = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Magenta;
+        Console.WriteLine("\n[ADMIN] Verifying cryptographic keys for 30 robots...");
+        Console.ForegroundColor = prev;
+
+        int totalVerified = 0;
+        int totalRejected = 0;
         foreach (var res in results)
         {
-            if (res.HasFindings)
+            bool isValid = Verifier.ValidateKey(res.RobotId, res.AnnotationCount, res.Summary, res.VerificationKey);
+            if (!isValid)
             {
-                allAnnotations.AddRange(res.Annotations);
+                var errColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[SECURITY FATAL] Robot {res.Role} returned an INVALID or missing Verification Key! Rejecting findings.");
+                Console.ForegroundColor = errColor;
+                totalRejected++;
+                continue;
             }
+            totalVerified++;
         }
 
-        return allAnnotations;
+        prev = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine($"[ADMIN] Verification complete. Accepted: {totalVerified}, Rejected: {totalRejected}");
+        Console.ForegroundColor = prev;
+
+        string annPath = dumpPath.Replace(".dump", ".annotations");
+        string[] lines = WorkspaceManager.ReadAnnotations(dumpPath);
+
+        prev = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"[ADMIN] Annotations file: {annPath} ({lines.Length} entries)");
+        Console.ForegroundColor = prev;
+
+        return annPath;
     }
 
     private async Task InvokeHelloPhaseAsync(CancellationToken ct)

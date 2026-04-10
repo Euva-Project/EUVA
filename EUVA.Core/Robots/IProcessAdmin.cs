@@ -26,4 +26,5 @@ public readonly struct AdminResponse
 public interface IProcessAdmin
 {
     Task<AdminResponse> OnRobotErrorAsync(Guid robotId, RobotRole role, string missingKey);
+    RobotVerifier Verifier { get; }
 }
