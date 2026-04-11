@@ -44,6 +44,15 @@ public sealed class MappedDumpContext : IDisposable
         }
     }
 
+    public string[] ReadLines()
+    {
+        if (_fs == null) return Array.Empty<string>();
+        _fs.Position = 0;
+        using var reader = new StreamReader(_fs, System.Text.Encoding.UTF8, false, 4096, true);
+        var content = reader.ReadToEnd();
+        return content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+    }
+
     public void Dispose()
     {
         _accessor?.Dispose();
