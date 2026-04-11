@@ -26,6 +26,8 @@ namespace EUVA.UI;
 
 public partial class MainWindow
 {
+    public static bool ShowPostDecompilerOutput = true; 
+
     private TabItem? _decompTabItem;
     private DisassemblerHexView? _decompDisasmView;
     private DecompilerGraphView? _decompGraphView;
@@ -103,7 +105,6 @@ public partial class MainWindow
                 LogMessage("[Decomp] UI fast-refreshed based on global rename.");
             }
         };
-
 
         _decompTextView.JumpRequest += (_, addr) =>
         {
@@ -1109,15 +1110,78 @@ public partial class MainWindow
                 admin.InitializeFleet();
 
                 var annPath = await Task.Run(() => admin.RunPipelineAsync(fileOffset, linearSource));
+                string dumpPath = annPath.Replace(".annotations", ".dump");
 
-                var annLines = EUVA.Core.Robots.WorkspaceManager.ReadAnnotations(annPath.Replace(".annotations", ".dump"));
+                var annLines = EUVA.Core.Robots.WorkspaceManager.ReadAnnotations(dumpPath);
                 LogMessage($"[Decomp] Non-Linear Pipeline finished. Annotations file: {annPath} ({annLines.Length} entries)");
+
+                if (ShowPostDecompilerOutput)
+                {
+                    try
+                    {
+                        var newLines = System.IO.File.ReadAllLines(dumpPath);
+                        var pcLines = new System.Collections.Generic.List<EUVA.Core.Disassembly.PseudocodeLine>();
+                        
+                        string banner = "/* ------ */";
+                        pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(banner, new[] { new EUVA.Core.Disassembly.PseudocodeSpan(0, banner.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Comment) }));
+                        pcLines.Add(EUVA.Core.Disassembly.PseudocodeLine.Empty);
+
+                        foreach (var l in newLines)
+                        {
+                            pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l)));
+                        }
+                        result.FullText = pcLines.ToArray();
+
+                        Dispatcher.Invoke(() =>
+                        {
+                            _decompTextView?.OverrideText(result.FullText);
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        LogMessage($"[Decomp] Failed to format Post-Decompiler output: {ex.Message}");
+                    }
+                }
             }
         }
         catch (Exception ex)
         {
             LogMessage($"[Decomp] Analysis failed: {ex.ToString()}");
         }
+    }
+
+    private static EUVA.Core.Disassembly.PseudocodeSpan[] BuildSpansFast(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return Array.Empty<EUVA.Core.Disassembly.PseudocodeSpan>();
+        if (text.TrimStart().StartsWith("//"))
+            return new[] { new EUVA.Core.Disassembly.PseudocodeSpan(0, text.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Comment) };
+
+        var spans = new System.Collections.Generic.List<EUVA.Core.Disassembly.PseudocodeSpan>();
+        var regex = new System.Text.RegularExpressions.Regex(
+            @"(?<String>""[^""]*"")|(?<Comment>//.*)|(?<Number>\b0x[0-9a-fA-F]+\b|\b\d+\b)|(?<Keyword>\b(if|else|while|do|for|switch|case|default|break|continue|return|goto|alloca|sizeof|reinterpret_cast|static_cast|std|filesystem|remove|try|catch)\b)|(?<Type>\b(int8_t|uint8_t|int16_t|uint16_t|int32_t|uint32_t|int64_t|uint64_t|float|double|bool|void|int|unsigned|struct|char)\b)|(?<Method>\b[a-zA-Z_]\w*(?=\s*\())|(?<Var>\b[a-zA-Z_]\w*\b)|(?<Punct>[{}()\[\].,;])|(?<Op>[+\-*/%&|^~<>=!?:]+)");
+
+        foreach (System.Text.RegularExpressions.Match m in regex.Matches(text))
+        {
+            if (m.Groups["Comment"].Success) spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Comment));
+            else if (m.Groups["String"].Success) spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.String));
+            else if (m.Groups["Number"].Success) spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Number));
+            else if (m.Groups["Keyword"].Success) spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Keyword));
+            else if (m.Groups["Type"].Success) spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Type));
+            else if (m.Groups["Method"].Success) spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Function));
+            else if (m.Groups["Var"].Success)
+            {
+                string val = m.Groups["Var"].Value;
+                if (val.StartsWith("loc_") || val.Contains("sub_") || val.StartsWith("block_") || val.StartsWith("g_0x") || val.StartsWith("spill_"))
+                    spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Address));
+                else
+                    spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Variable));
+            }
+            else if (m.Groups["Op"].Success) spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Operator));
+            else if (m.Groups["Punct"].Success) spans.Add(new EUVA.Core.Disassembly.PseudocodeSpan(m.Index, m.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Punctuation));
+        }
+
+        if (spans.Count == 0) return new[] { new EUVA.Core.Disassembly.PseudocodeSpan(0, text.Length, EUVA.Core.Disassembly.PseudocodeSyntax.Text) };
+        return spans.ToArray();
     }
 
     private void TryAutoAnalyzeEntryPoint()

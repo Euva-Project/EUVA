@@ -208,6 +208,25 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         else Redraw();
     }
 
+    public void OverrideText(PseudocodeLine[] newText)
+    {
+        System.Threading.Interlocked.Increment(ref _layoutVersion);
+        _layout = null;
+        _flatLines = newText;
+        _lineBlockIndex = new int[newText.Length];
+        _lineLocalIndex = new int[newText.Length];
+        for (int i = 0; i < newText.Length; i++) {
+            _lineBlockIndex[i] = 0;
+            _lineLocalIndex[i] = i;
+        }
+        _scrollLine = 0;
+        _cursorLine = -1;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() =>
+        {
+            Redraw();
+        }));
+    }
+
     public void JumpToAddress(long address)
     {
         if (_flatLines == null || _flatLines.Length == 0) return;
