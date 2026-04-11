@@ -21,4 +21,10 @@
     <PackageReference Include="Microsoft.Msagl" Version="1.1.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Robots\Patterns\Rules\*.jsonl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
