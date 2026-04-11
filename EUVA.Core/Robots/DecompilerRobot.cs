@@ -95,8 +95,7 @@ public sealed class DecompilerRobot : RobotBase
     private Task DispatchByRole(MappedDumpContext ctx, CancellationToken ct) =>
         Role switch
         {
-            RobotRole.VerificationRelay => RelayVerification(ctx, ct),
-            _                          => ApplyPatternsAsync(ctx, ct),
+            _ => Task.CompletedTask,
         };
 
     private async Task ApplyPatternsAsync(MappedDumpContext ctx, CancellationToken ct)

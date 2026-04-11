@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EUVA.Core.Robots.Patterns;
 
 namespace EUVA.Core.Robots;
 
@@ -48,6 +49,8 @@ public sealed class ProcessAdmin : IProcessAdmin
         await InvokeHelloPhaseAsync(ct).ConfigureAwait(false);
 
         string dumpPath = WorkspaceManager.CreateFunctionWorkspace(funcAddress, linearOutput);
+
+        RunUnifiedTransform(dumpPath);
 
         var results = await KickAllSimultaneouslyAsync(dumpPath, ct).ConfigureAwait(false);
 
@@ -175,5 +178,24 @@ public sealed class ProcessAdmin : IProcessAdmin
             Console.ForegroundColor = prev;
             return Task.FromResult(new AdminResponse(AdminDecision.Ignore));
         }
+    }
+
+    private void RunUnifiedTransform(string dumpPath)
+    {
+        string rulesDir = PatternLoader.GetDefaultRulesDir();
+        var allRules = PatternLoader.LoadAll(rulesDir);
+
+        if (allRules.Count == 0) return;
+
+        var lines = System.IO.File.ReadAllLines(dumpPath);
+        var engine = new PatternEngine(allRules);
+        var transformed = engine.ApplyAll(lines);
+
+        System.IO.File.WriteAllLines(dumpPath, transformed);
+
+        var prev = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"[ADMIN] Unified PatternEngine: {allRules.Count} rules, {engine.TotalPatches} lines transformed");
+        Console.ForegroundColor = prev;
     }
 }
