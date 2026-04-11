@@ -1,0 +1,3 @@
+{"id":"oop_vtable_call","category":"oop","description":"vtable indirect call -> obj->vfunc_N()","pattern":"\\(\\*\\(\\s*\\(void\\s*\\*\\*\\)\\s*(\\w+)\\s*\\+\\s*(\\d+)\\s*\\)\\)\\(","replacement":"$1->vfunc_$2(","mode":"regex","priority":30,"requires_context":false}
+{"id":"oop_vtable_deref","category":"oop","description":"(**(void***)obj)() -> obj->vtable[0]()","pattern":"\\(\\*\\*\\(void\\s*\\*\\*\\*\\)(\\w+)\\)\\(","replacement":"$1->vfunc_0(","mode":"regex","priority":30,"requires_context":false}
+{"id":"oop_this_ptr_access","category":"oop","description":"*(this + N) -> this->field_N","pattern":"\\*\\(\\s*(\\w+)\\s*\\+\\s*(0x[0-9A-Fa-f]+)\\s*\\)","replacement":"$1->field_$2","mode":"regex","priority":28,"requires_context":false,"guard":"this|self|pObj|pThis"}
