@@ -160,6 +160,16 @@ public sealed class DataFlowTracker
         return _symbols.TryGetValue(varName, out var info) ? info : null;
     }
 
+    public void SetKnownType(string varName, string typeName)
+    {
+        if (!_symbols.TryGetValue(varName, out var sym))
+        {
+            sym = new SymbolInfo { AssignedAtLine = -1 };
+            _symbols[varName] = sym;
+        }
+        sym.KnownType = typeName;
+    }
+
     public bool IsCallResult(string varName, string apiName)
     {
         if (!_symbols.TryGetValue(varName, out var info)) return false;

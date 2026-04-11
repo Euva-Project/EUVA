@@ -191,11 +191,30 @@ public sealed class ProcessAdmin : IProcessAdmin
         var engine = new PatternEngine(allRules);
         var transformed = engine.ApplyAll(lines);
 
-        System.IO.File.WriteAllLines(dumpPath, transformed);
+        var finalLines = new List<string>();
+
+        if (engine.UsedStructs.Any())
+        {
+            finalLines.Add("/* --- Structures --- */");
+            foreach (var structName in engine.UsedStructs)
+            {
+                var def = EUVA.Core.Robots.Patterns.Types.TypeDatabase.GetStruct(structName);
+                if (def != null)
+                {
+                    finalLines.Add(def.EmitSyntax());
+                }
+            }
+            finalLines.Add("/* ---------------------------- */\n");
+        }
+
+        finalLines.AddRange(transformed);
+        System.IO.File.WriteAllLines(dumpPath, finalLines);
 
         var prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine($"[ADMIN] Unified PatternEngine: {allRules.Count} rules, {engine.TotalPatches} lines transformed");
+        if (engine.UsedStructs.Any())
+            Console.WriteLine($"[ADMIN] {engine.UsedStructs.Count()} structs: {string.Join(", ", engine.UsedStructs)}");
         Console.ForegroundColor = prev;
     }
 }
