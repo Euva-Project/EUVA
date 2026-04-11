@@ -19,23 +19,27 @@ public sealed class ProcessAdmin : IProcessAdmin
     {
         Verifier = new RobotVerifier();
         _network = new RobotNetwork(this);
-        _robots  = new List<RobotBase>(30);
+        _robots  = new List<RobotBase>(7);
     }
 
     public void InitializeFleet()
     {
-        var roles = Enum.GetValues<RobotRole>();
-        
-        foreach (var role in roles)
+        _robots.Add(new DecompilerRobot(RobotRole.WinApiToCppAgent, _network));
+        _robots.Add(new DecompilerRobot(RobotRole.PointerCastSimplifier, _network));
+        _robots.Add(new DecompilerRobot(RobotRole.MacroReconstructor, _network));
+        _robots.Add(new DecompilerRobot(RobotRole.TypeInferenceAgent, _network));
+        _robots.Add(new DecompilerRobot(RobotRole.GlobalVariableRenamer, _network));
+        _robots.Add(new DecompilerRobot(RobotRole.IfElseStructurer, _network));
+        _robots.Add(new DecompilerRobot(RobotRole.VerificationRelay, _network));
+
+        foreach (var robot in _robots)
         {
-            var robot = new DecompilerRobot(role, _network);
             _network.Register(robot);
-            _robots.Add(robot);
         }
 
         var prev = Console.ForegroundColor;
-        Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine($"[ADMIN]  Fleet initialized. Total robots: {_robots.Count}");
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"[ADMIN] Fleet refactored for C++ AST generation. Total robots: {_robots.Count}");
         Console.ForegroundColor = prev;
     }
 
@@ -49,7 +53,7 @@ public sealed class ProcessAdmin : IProcessAdmin
 
         var prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Magenta;
-        Console.WriteLine("\n[ADMIN] Verifying cryptographic keys for 30 robots...");
+        Console.WriteLine($"[ADMIN] Verifying cryptographic keys for 7 robots...");
         Console.ForegroundColor = prev;
 
         int totalVerified = 0;
@@ -111,7 +115,7 @@ public sealed class ProcessAdmin : IProcessAdmin
     {
         var prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine("[ADMIN] Kicking all 30 robots simultaneously now!");
+        Console.WriteLine($"[ADMIN] Kicking all 7 robots simultaneously now!");
         Console.ForegroundColor = prev;
 
         RobotResult[] results;
@@ -126,6 +130,15 @@ public sealed class ProcessAdmin : IProcessAdmin
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"[ADMIN] All {results.Length} robots have finished their work.");
         Console.ForegroundColor = prev;
+
+        Console.WriteLine($"[ADMIN] Annotations file: {dumpPath.Replace(".dump", ".annotations")} ({WorkspaceManager.ReadAnnotations(dumpPath).Length} entries)");
+
+        var applyColor = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Magenta;
+        Console.WriteLine("[ADMIN] Applying AST-Lite transformations to the source dump...");
+        Console.ForegroundColor = applyColor;
+
+        WorkspaceManager.ApplyTransformations(dumpPath);
 
         return results;
     }
