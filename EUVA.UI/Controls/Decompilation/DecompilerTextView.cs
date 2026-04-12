@@ -41,12 +41,17 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         private byte[]? RasterizeGlyph(char c)
         {
             if (!_gtf.CharacterToGlyphMap.TryGetValue(c, out ushort gi)) return null;
+            
+            double baselineY = Math.Round(_gtf.Baseline * _fontSize * _pixelsPerDip) / _pixelsPerDip;
+            
             var gr = new GlyphRun(
                 _gtf, 0, false, _fontSize, (float)_pixelsPerDip,
-                new[] { gi }, new Point(0, _gtf.Baseline * _fontSize),
+                new[] { gi }, new Point(0, baselineY),
                 new[] { _gtf.AdvanceWidths[gi] * _fontSize },
                 null, null, null, null, null, null);
             var dv = new DrawingVisual();
+            TextOptions.SetTextFormattingMode(dv, TextFormattingMode.Ideal);
+            TextOptions.SetTextRenderingMode(dv, TextRenderingMode.Grayscale);
             using (var dc = dv.RenderOpen()) { dc.DrawGlyphRun(Brushes.White, gr); }
             var rtb = new RenderTargetBitmap(_cellW, _cellH, 96 * _pixelsPerDip, 96 * _pixelsPerDip, PixelFormats.Pbgra32);
             rtb.Render(dv);
