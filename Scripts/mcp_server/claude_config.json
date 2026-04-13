@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+        "euva": {
+            "command": "C:YOUR_PATH\\python.exe",
+            "args": [
+                "C:YOUR_PATH\\EUVA\\Scripts\\mcp_server\\euva_mcp.py"
+            ],
+            "env": {
+                "PYTHONPATH": "C:YOUR_PATH\\EUVA\\Scripts\\mcp_server"
+            }
+        }
+    }
+}
