@@ -219,6 +219,12 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
     {
         System.Threading.Interlocked.Increment(ref _layoutVersion);
         _layout = null;
+
+        int prevScroll = _scrollLine;
+        int prevCursor = _cursorLine;
+        var prevSelStart = _selStart;
+        var prevSelEnd = _selEnd;
+
         _flatLines = newText;
         _lineBlockIndex = new int[newText.Length];
         _lineLocalIndex = new int[newText.Length];
@@ -226,8 +232,12 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
             _lineBlockIndex[i] = 0;
             _lineLocalIndex[i] = i;
         }
-        _scrollLine = 0;
-        _cursorLine = -1;
+
+        _scrollLine = Math.Clamp(prevScroll, 0, Math.Max(0, newText.Length - 1));
+        _cursorLine = prevCursor >= 0 ? Math.Clamp(prevCursor, 0, Math.Max(0, newText.Length - 1)) : -1;
+        _selStart = prevSelStart;
+        _selEnd = prevSelEnd;
+
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() =>
         {
             Redraw();

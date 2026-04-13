@@ -45,6 +45,46 @@ public partial class MainWindow
     private int _peBitness = 64;
     private readonly XrefManager _xrefManager = new();
     private List<Function> _allFunctions = new();
+    private System.IO.FileSystemWatcher? _dumpWatcher;
+
+    private void InitDumpWatcher()
+    {
+        if (_dumpWatcher != null) return;
+        string dumpsDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Dumps");
+        if (!System.IO.Directory.Exists(dumpsDir)) System.IO.Directory.CreateDirectory(dumpsDir);
+        
+        _dumpWatcher = new System.IO.FileSystemWatcher(dumpsDir, "*.dump");
+        _dumpWatcher.NotifyFilter = System.IO.NotifyFilters.LastWrite;
+        _dumpWatcher.Changed += DumpWatcher_Changed;
+        _dumpWatcher.EnableRaisingEvents = true;
+    }
+
+    private void DumpWatcher_Changed(object sender, System.IO.FileSystemEventArgs e)
+    {
+        if (_currentFunctionOffset == -1) return;
+        string expectedName = $"func_{_currentFunctionOffset:X}.dump";
+        if (System.IO.Path.GetFileName(e.FullPath).Equals(expectedName, System.StringComparison.OrdinalIgnoreCase))
+        {
+            Dispatcher.InvokeAsync(async delegate
+            {
+                await System.Threading.Tasks.Task.Delay(50); 
+                if (!System.IO.File.Exists(e.FullPath)) return;
+                try
+                {
+                    var newLines = System.IO.File.ReadAllLines(e.FullPath);
+                    var pcLines = new System.Collections.Generic.List<EUVA.Core.Disassembly.PseudocodeLine>();
+                    foreach (var l in newLines)
+                    {
+                        pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l)));
+                    }
+                    if (_textModeActive && _decompTextView != null)
+                    {
+                        _decompTextView.OverrideText(pcLines.ToArray());
+                    }
+                } catch { } 
+            });
+        }
+    }
 
     private void MenuDecompiler_Click(object sender, RoutedEventArgs e)
     {
@@ -56,6 +96,7 @@ public partial class MainWindow
         }
 
         EnsureCenterTabControl();
+        InitDumpWatcher();
 
         if (_decompTabItem != null)
         {
