@@ -378,10 +378,12 @@ public partial class MainWindow : Window
         ThemeManager.Instance.ApplyDefaultTheme();
             try
             {
-                string oldSignaturesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "signatures.json");
-                if (File.Exists(oldSignaturesPath))
+                string binSignaturesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "signatures.bin");
+                
+                if (File.Exists(binSignaturesPath))
                 {
-                    SignatureCache.Load(oldSignaturesPath);
+                    SignatureCache.LoadBin(binSignaturesPath);
+                    LogMessage("[EUVA] Signatures loaded from MessagePack binary.");
                 }
 
                 string fingerprintDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "standard_signatures.json.gz");
@@ -398,7 +400,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Warning: Error occurred while loading knowledge base!\n{ex.Message}", 
+                MessageBox.Show($"Warning: Error occurred while loading knowledge base!\n{ex.ToString()}", 
                                 "EUVA Engine", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "euva.cfg");
