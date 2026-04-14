@@ -213,7 +213,11 @@ public sealed class ProcessAdmin : IProcessAdmin
         finalLines.AddRange(labeledLines);
         var externRobot = new EUVA.Core.Robots.Patterns.ExternDefineRobot();
         var withExterns = externRobot.Apply(finalLines);
-        System.IO.File.WriteAllLines(dumpPath, withExterns);
+        
+        var includeRobot = new EUVA.Core.Robots.Patterns.IncludeRobot();
+        var withIncludes = includeRobot.Apply(withExterns);
+        
+        System.IO.File.WriteAllLines(dumpPath, withIncludes);
 
         var prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Cyan;
