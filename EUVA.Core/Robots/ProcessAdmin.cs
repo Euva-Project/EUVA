@@ -195,7 +195,7 @@ public sealed class ProcessAdmin : IProcessAdmin
 
         if (engine.UsedStructs.Any())
         {
-            finalLines.Add("================================ \n");
+            finalLines.Add("// ================================ \n");
             foreach (var structName in engine.UsedStructs)
             {
                 var def = EUVA.Core.Robots.Patterns.Types.TypeDatabase.GetStruct(structName);
@@ -204,15 +204,16 @@ public sealed class ProcessAdmin : IProcessAdmin
                     finalLines.Add(def.EmitSyntax());
                 }
             }
-            finalLines.Add("================================ \n");
-            finalLines.Add("// start of code (main label): \n");
+            finalLines.Add("// ================================ \n");
         }
 
         var labelRobot = new EUVA.Core.Robots.Patterns.UniversalLabelRobot();
         var labeledLines = labelRobot.ApplyLabels(transformed);
 
         finalLines.AddRange(labeledLines);
-        System.IO.File.WriteAllLines(dumpPath, finalLines);
+        var externRobot = new EUVA.Core.Robots.Patterns.ExternDefineRobot();
+        var withExterns = externRobot.Apply(finalLines);
+        System.IO.File.WriteAllLines(dumpPath, withExterns);
 
         var prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Cyan;
