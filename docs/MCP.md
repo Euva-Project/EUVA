@@ -14,6 +14,10 @@ pip install -r requirements.txt
 
 ## Configuration
 
+> [!NOTE]
+> a simple example, in fact, you can use not only Claude, but any environment where MCP support is integrated 
+The configuration file in other environments may differ from what is in this documentation. Keep in mind that you should read how to configure the MCP server configuration based on your environment in their official documentation.
+
 Copy the contents below into your MCP client configuration file.  
 For Claude Desktop: `YOUR_PATH\\claude_desktop_config.json`
 
