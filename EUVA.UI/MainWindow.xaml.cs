@@ -374,6 +374,7 @@ public partial class MainWindow : Window
         };
 
         LogMessage("[System] Initializing environment...");
+        Log("[Warning] If you need to, configure VirusTotal API key in the settings.", Brushes.Yellow);
         HotkeyManager.LoadDefaults();
         ThemeManager.Instance.ApplyDefaultTheme();
             try
