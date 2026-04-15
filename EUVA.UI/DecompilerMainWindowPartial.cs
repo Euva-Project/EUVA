@@ -1155,7 +1155,7 @@ public partial class MainWindow
 
             Dispatcher.Invoke(() =>
             {
-                LogMessage($"[Decomp] Graph: {result.Nodes.Length} blocks, {result.Edges.Length} edges.");
+                //LogMessage($"[Decomp] Graph: {result.Nodes.Length} blocks, {result.Edges.Length} edges.");
             });
 
             if (result.FullText != null && result.FullText.Length > 0 && ShowPostDecompilerOutput)
