@@ -1,0 +1,49 @@
+name-template: '$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+autolabeler:
+  - label: 'feature'
+    keywords:
+      - 'add'
+      - 'new'
+      - 'create'
+      - 'feat'
+  - label: 'fix'
+    keywords:
+      - 'fix'
+  - label: 'update'
+    keywords:
+      - 'update'
+  - label: 'remove'
+    keywords:
+      - 'remove'
+
+categories:
+  - title: '🚀 New Feat'
+    labels:
+      - 'feature'
+  - title: '🛠 Update and improvements'
+    labels:
+      - 'update'
+  - title: '🐛 Fixed Bug'
+    labels:
+      - 'fix'
+  - title: '🗑 Remove'
+    labels:
+      - 'remove'
+
+version-resolver:
+  major:
+    labels:
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+  patch:
+    labels:
+      - 'patch'
+  default: patch
+
+template: |
+  ## What's new in EUVA?
+  $CHANGES
