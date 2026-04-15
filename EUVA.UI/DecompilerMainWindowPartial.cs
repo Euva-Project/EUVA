@@ -43,46 +43,6 @@ public partial class MainWindow
     private int _peBitness = 64;
     private readonly XrefManager _xrefManager = new();
     private List<Function> _allFunctions = new();
-    private System.IO.FileSystemWatcher? _dumpWatcher;
-
-    private void InitDumpWatcher()
-    {
-        if (_dumpWatcher != null) return;
-        string dumpsDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Dumps");
-        if (!System.IO.Directory.Exists(dumpsDir)) System.IO.Directory.CreateDirectory(dumpsDir);
-        
-        _dumpWatcher = new System.IO.FileSystemWatcher(dumpsDir, "*.dump");
-        _dumpWatcher.NotifyFilter = System.IO.NotifyFilters.LastWrite;
-        _dumpWatcher.Changed += DumpWatcher_Changed;
-        _dumpWatcher.EnableRaisingEvents = true;
-    }
-
-    private void DumpWatcher_Changed(object sender, System.IO.FileSystemEventArgs e)
-    {
-        if (_currentFunctionOffset == -1) return;
-        string expectedName = $"func_{_currentFunctionOffset:X}.dump";
-        if (System.IO.Path.GetFileName(e.FullPath).Equals(expectedName, System.StringComparison.OrdinalIgnoreCase))
-        {
-            Dispatcher.InvokeAsync(async delegate
-            {
-                await System.Threading.Tasks.Task.Delay(50); 
-                if (!System.IO.File.Exists(e.FullPath)) return;
-                try
-                {
-                    var newLines = System.IO.File.ReadAllLines(e.FullPath);
-                    var pcLines = new System.Collections.Generic.List<EUVA.Core.Disassembly.PseudocodeLine>();
-                    foreach (var l in newLines)
-                    {
-                        pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l)));
-                    }
-                    if (_decompTextView != null)
-                    {
-                        _decompTextView.OverrideText(pcLines.ToArray());
-                    }
-                } catch { } 
-            });
-        }
-    }
 
     private void MenuDecompiler_Click(object sender, RoutedEventArgs e)
     {
@@ -94,7 +54,6 @@ public partial class MainWindow
         }
 
         EnsureCenterTabControl();
-        InitDumpWatcher();
 
         if (_decompTabItem != null)
         {
@@ -1115,6 +1074,10 @@ public partial class MainWindow
         _currentFunctionOffset = fileOffset;
         if (HexView.FileLength == 0) return;
 
+        _decompTextView?.OverrideText(new[] {
+            new EUVA.Core.Disassembly.PseudocodeLine("// Decompiling...", new[] { new EUVA.Core.Disassembly.PseudocodeSpan(0, 17, EUVA.Core.Disassembly.PseudocodeSyntax.Comment) })
+        });
+
         try
         {
             LayoutResult result;
@@ -1145,11 +1108,10 @@ public partial class MainWindow
 
             Dispatcher.Invoke(() =>
             {
-                _decompTextView?.SetGraphData(result);
                 LogMessage($"[Decomp] Graph: {result.Nodes.Length} blocks, {result.Edges.Length} edges.");
             });
 
-            if (result.FullText != null && result.FullText.Length > 0)
+            if (result.FullText != null && result.FullText.Length > 0 && ShowPostDecompilerOutput)
             {
                 string linearSource = string.Join("\n", result.FullText.Select(line => line.Text));
                 
@@ -1162,31 +1124,36 @@ public partial class MainWindow
                 var annLines = EUVA.Core.Robots.WorkspaceManager.ReadAnnotations(dumpPath);
                 LogMessage($"[Decomp] Non-Linear Pipeline finished. Annotations file: {annPath} ({annLines.Length} entries)");
 
-                if (ShowPostDecompilerOutput)
+                try
                 {
-                    try
-                    {
-                        var newLines = System.IO.File.ReadAllLines(dumpPath);
-                        var pcLines = new System.Collections.Generic.List<EUVA.Core.Disassembly.PseudocodeLine>();
+                    var newLines = System.IO.File.ReadAllLines(dumpPath);
+                    var pcLines = new System.Collections.Generic.List<EUVA.Core.Disassembly.PseudocodeLine>();
 
-                        for (int i = 0; i < newLines.Length; i++)
-                        {
-                            string l = newLines[i];
-                            long origAddr = (result.FullText != null && i < result.FullText.Length) ? result.FullText[i].Address : -1;
-                            pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l), origAddr));
-                        }
-                        result.FullText = pcLines.ToArray();
-
-                        Dispatcher.Invoke(() =>
-                        {
-                            _decompTextView?.OverrideText(result.FullText);
-                        });
-                    }
-                    catch (Exception ex)
+                    for (int i = 0; i < newLines.Length; i++)
                     {
-                        LogMessage($"[Decomp] Failed to format Post-Decompiler output: {ex.Message}");
+                        string l = newLines[i];
+                        long origAddr = (i < result.FullText.Length) ? result.FullText[i].Address : -1;
+                        pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l), origAddr));
                     }
+                    result.FullText = pcLines.ToArray();
+                    
+                    Dispatcher.Invoke(() =>
+                    {
+                        _decompTextView?.OverrideText(result.FullText);
+                    });
                 }
+                catch (Exception ex)
+                {
+                    LogMessage($"[Decomp] Failed to format Post-Decompiler output: {ex.Message}");
+                    Dispatcher.Invoke(() => _decompTextView?.SetGraphData(result));
+                }
+            }
+            else
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    _decompTextView?.SetGraphData(result);
+                });
             }
         }
         catch (Exception ex)
