@@ -30,12 +30,10 @@ public partial class MainWindow
 
     private TabItem? _decompTabItem;
     private DisassemblerHexView? _decompDisasmView;
-    private DecompilerGraphView? _decompGraphView;
     private DecompilerTextView? _decompTextView;
     private readonly DecompilerEngine _decompEngine = new();
     private readonly PseudocodeGenerator _pseudocodeGen = new();
     private long _currentFunctionOffset = -1;
-    private bool _textModeActive;
     private Grid? _decompRightPanel; 
     private readonly Stack<Dictionary<string, VariableSymbol>> _aiRenameHistory = new();
     private ExecutableRange[]? _executableRanges;
@@ -77,7 +75,7 @@ public partial class MainWindow
                     {
                         pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l)));
                     }
-                    if (_textModeActive && _decompTextView != null)
+                    if (_decompTextView != null)
                     {
                         _decompTextView.OverrideText(pcLines.ToArray());
                     }
@@ -124,15 +122,7 @@ public partial class MainWindow
         
         SetDecompPeInfo(_decompDisasmView);
 
-        
-        _decompGraphView = new DecompilerGraphView();
-        _decompGraphView.SetPseudocodeGenerator(_pseudocodeGen);
-        if (mmf != null)
-        {
-            var accessor2 = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
-            _decompGraphView.SetDataSource(mmf, accessor2, HexView.FileLength);
-        }
-        _decompGraphView.BlockSelected += DecompGraphView_BlockSelected;
+
 
         
         
@@ -152,12 +142,7 @@ public partial class MainWindow
             _decompDisasmView?.ScrollToOffset(addr);
             AnalyzeFunction(addr);
         };
-        _decompTextView.Visibility = Visibility.Collapsed;
-        _textModeActive = false;
-
-        
         _decompRightPanel = new Grid();
-        _decompRightPanel.Children.Add(_decompGraphView);
         _decompRightPanel.Children.Add(_decompTextView);
 
         
@@ -531,7 +516,6 @@ public partial class MainWindow
             LogMessage($"[Decomp] Parent function found: {parent.Name} at 0x{parent.FileOffset:X8}");
             _decompDisasmView?.ScrollToOffset(parent.FileOffset);
             AnalyzeFunction(parent.FileOffset, fileOffset);
-            if (!_textModeActive) ToggleDecompTextMode();
         }
         else
         {
@@ -782,7 +766,6 @@ public partial class MainWindow
             LogMessage($"[Decomp] Smart Jump: Found {importName} at 0x{address:X8} in sub_{parentAddr:X}.");
             AnalyzeFunction(parentAddr, address);
             SwitchSidePanel(false);
-            if (!_textModeActive) ToggleDecompTextMode();
         }
         else
         {
@@ -796,15 +779,12 @@ public partial class MainWindow
                 LogMessage($"[Decomp] Found hidden function start at 0x{hiddenFunctionStart:X8}!");
                 AnalyzeFunction(hiddenFunctionStart, address);
                 SwitchSidePanel(false);
-                if (!_textModeActive) ToggleDecompTextMode();
             }
             else
             {
                 LogMessage($"[Decomp] Could not find prologue. Showing raw disassembly.");
                 _decompDisasmView?.ScrollToOffset(address);
                 SwitchSidePanel(false);
-              
-                if (_textModeActive) ToggleDecompTextMode(); 
             }
         }
     }
@@ -1133,7 +1113,7 @@ public partial class MainWindow
     private async void AnalyzeFunction(long fileOffset, long targetXref = -1)
     {
         _currentFunctionOffset = fileOffset;
-        if (_decompGraphView == null || HexView.FileLength == 0) return;
+        if (HexView.FileLength == 0) return;
 
         try
         {
@@ -1165,7 +1145,6 @@ public partial class MainWindow
 
             Dispatcher.Invoke(() =>
             {
-                _decompGraphView.SetGraphData(result);
                 _decompTextView?.SetGraphData(result);
                 LogMessage($"[Decomp] Graph: {result.Nodes.Length} blocks, {result.Edges.Length} edges.");
             });
@@ -1190,9 +1169,11 @@ public partial class MainWindow
                         var newLines = System.IO.File.ReadAllLines(dumpPath);
                         var pcLines = new System.Collections.Generic.List<EUVA.Core.Disassembly.PseudocodeLine>();
 
-                        foreach (var l in newLines)
+                        for (int i = 0; i < newLines.Length; i++)
                         {
-                            pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l)));
+                            string l = newLines[i];
+                            long origAddr = (result.FullText != null && i < result.FullText.Length) ? result.FullText[i].Address : -1;
+                            pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l), origAddr));
                         }
                         result.FullText = pcLines.ToArray();
 
@@ -1400,12 +1381,7 @@ public partial class MainWindow
        
     private void DecompDock_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == System.Windows.Input.Key.F5)
-        {
-            ToggleDecompTextMode();
-            e.Handled = true;
-        }
-        else if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
         {
             if (e.SystemKey == Key.E)
             {
@@ -1438,31 +1414,6 @@ public partial class MainWindow
         }
     }
 
-    private void ToggleDecompTextMode()
-    {
-        if (_decompGraphView == null || _decompTextView == null) return;
-
-        _textModeActive = !_textModeActive;
-
-        if (_textModeActive)
-        {
-            _decompGraphView.Visibility = Visibility.Collapsed;
-            _decompTextView.Visibility = Visibility.Visible;
-            _decompTextView.RefreshView();
-            if (_decompTabItem != null)
-                _decompTabItem.Header = "Disasm + Pseudocode";
-            LogMessage("[Decomp] Switched to TEXT mode (F5 to toggle back).");
-        }
-        else
-        {
-            _decompTextView.Visibility = Visibility.Collapsed;
-            _decompGraphView.Visibility = Visibility.Visible;
-            _decompGraphView.RefreshView();
-            if (_decompTabItem != null)
-                _decompTabItem.Header = "Disasm + Decompiler";
-            LogMessage("[Decomp] Switched to GRAPH mode (F5 to toggle back).");
-        }
-    }
 
 
     private void DecompDisasmView_OffsetSelected(object? sender, long offset)
@@ -1471,11 +1422,7 @@ public partial class MainWindow
         HexView_OffsetSelected(HexView, offset);
     }
 
-    private void DecompGraphView_BlockSelected(object? sender, long offset)
-    {
-        _decompDisasmView?.ScrollToOffset(offset);
-        LogMessage($"[Decomp] Graph block selected at 0x{offset:X8}.");
-    }
+
 
     private void RefreshDecompOnFileLoad()
     {
@@ -1490,11 +1437,7 @@ public partial class MainWindow
         SetDecompPeInfo(_decompDisasmView);
         _decompDisasmView.RefreshView();
 
-        if (_decompGraphView != null && mmf != null)
-        {
-            var acc2 = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
-            _decompGraphView.SetDataSource(mmf, acc2, HexView.FileLength);
-        }
+
 
         TryAutoAnalyzeEntryPoint();
         PopulateFunctionList();
@@ -1502,6 +1445,5 @@ public partial class MainWindow
     private void RefreshDecompiledOutput()
     {
         _decompTextView?.RefreshView();
-        _decompGraphView?.RefreshView();
     }
 }
