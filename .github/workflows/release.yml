@@ -1,7 +1,21 @@
-- name: Checkout
+name: Release App
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write 
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
 
       - name: Build Changelog
         id: build_changelog
