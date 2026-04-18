@@ -226,15 +226,19 @@ Dive deeper into the theory and mechanics:
 ## ❓ FAQ
 
 **Q: Why use EUVA's built-in AI instead of AI plugins for IDA or Ghidra?**
+
 **A:** In legacy tools AI is just a "bolt-on" crutch that freezes the UI while scripts push text back and forth. In EUVA AI is part of the core. Our pipeline injects semantic-level changes in fast. It’s not a "plugin" it’s a symbiosis: the decompiler provides facts and the AI provides meaning. Zero stutters.
 
 **Q: Will my code leak to the cloud?**
+
 **A:** Only if you want it to. EUVA follows a **Local First** philosophy. Connect **Ollama** or any local server and work completely offline. Your reverse is your secret.
 
 **Q: What if the AI starts hallucinating and lying about the code?**
+
 **A:** Of course, this is not excluded. We work on a "Trust but Verify" basis. The AI cannot invent logic it only suggests names for variables that actually exist in the code. All changes are marked with `/* AI */` comments. If you don't like it one click or a hotkey rolls everything back to the raw state.
 
 **Q: How flexible is EUVA? Can I customize it for myself?**
+
 **A:** This is the main feature. EUVA is a platform.
 - Want your own naming rules? Edit the system prompt.
 - Want to connect your own analyzer in Python or Rust? Just read the temporary file that EUVA streams code to in real-time.
@@ -242,6 +246,7 @@ Dive deeper into the theory and mechanics:
 **Integration happens at the snap of a finger not through a week of reading SDK docs.**
 
 **Q: Why should I use EUVA if I have IDA Ghidra or Binary Ninja?**
+
 **A:** Because these are heavy monolithic programs
 - **IDA/Ghidra:** Heavy clunky with APIs that make you suffer.
 - **EUVA:** Built from scratch for the era of AI and rapid development. We aren't afraid to throw out old stuff (like we did with graphs) to give you a tool that follows your mood instead of dictating its own rules. **We are building this together with the community not behind closed doors.**
