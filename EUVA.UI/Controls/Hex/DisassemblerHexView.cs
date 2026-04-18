@@ -653,7 +653,7 @@ public sealed class DisassemblerHexView : FrameworkElement
         if (_displayMode == DisasmDisplayMode.HexAndDisasm)
         {
             double hexStartDip = _hexStartPx / _pixelsPerDip;
-            if (pos.X >= hexStartDip && pos.X < hexStartDip + ln.Length * 3 * CharWidth)
+            if (pos.X >= hexStartDip && pos.X < hexStartDip + ln.Length * 3.0 * CharWidth)
             {
                 int bi = (int)((pos.X - hexStartDip) / (3 * CharWidth));
                 bi = Math.Clamp(bi, 0, ln.Length - 1);

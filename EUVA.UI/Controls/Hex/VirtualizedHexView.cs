@@ -405,7 +405,7 @@ public class VirtualizedHexView : FrameworkElement
     {
         FillBackground(_backBuffer, _bitmapWidth, _bitmapHeight, _colBackground);
         int offsetColPx   = (int)(120 * _pixelsPerDip);
-        int hexColPx      = (int)(_bytesPerLine * 3 * _charWidth * _pixelsPerDip);
+        int hexColPx      = (int)(_bytesPerLine * 3.0 * _charWidth * _pixelsPerDip);
         int asciiColStartPx = offsetColPx + hexColPx + (int)(20 * _pixelsPerDip);
         int hexCellStepPxHdr = (int)Math.Round(3 * _charWidth * _pixelsPerDip);
         int headerH       = (int)(25 * _pixelsPerDip);
@@ -465,7 +465,7 @@ public class VirtualizedHexView : FrameworkElement
         if (offset >= _fileLength) return;
 
         int offsetColPx = (int)(120 * _pixelsPerDip);
-        int hexColPx = (int)(_bytesPerLine * 3 * _charWidth * _pixelsPerDip);
+        int hexColPx = (int)(_bytesPerLine * 3.0 * _charWidth * _pixelsPerDip);
         int asciiColStartPx = offsetColPx + hexColPx + (int)(20 * _pixelsPerDip);
         int yPx = LineToPixelY(lineIdx);
         FillRect(_backBuffer, _bitmapWidth, 0, yPx, _bitmapWidth, CellH, _colBackground);
@@ -1025,7 +1025,7 @@ public class VirtualizedHexView : FrameworkElement
     private long HitTest(Point pos)
     {
         double offsetColW = 120;
-        double hexColW = _bytesPerLine * 3 * _charWidth;
+        double hexColW = _bytesPerLine * 3.0 * _charWidth;
         double asciiColStart = offsetColW + hexColW + 20;
         long lineIndex = (long)((pos.Y - 25) / _lineHeight) + _currentScrollLine;
         if (lineIndex < 0) return -1;

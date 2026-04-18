@@ -321,8 +321,6 @@ public partial class MainWindow
                 acc.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
                 try
                 {
-                    var roots = new List<long>();
-                    if (ep >= 0) roots.Add(ep);
 
                     if (_mapper?.RootStructure != null)
                     {

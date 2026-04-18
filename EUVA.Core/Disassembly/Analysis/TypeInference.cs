@@ -10,8 +10,6 @@ public static class TypeInference
     public static Dictionary<(Register, int), TypeInfo> Infer(IrBlock[] blocks, Dictionary<ulong, string>? imports = null)
     {
         int inferred = 0;
-        var worklist = new Queue<IrInstruction>();
-        var inWorklist = new HashSet<IrInstruction>();
         var defMap = new Dictionary<(string, int), IrInstruction>();
         var useMap = new Dictionary<(string, int), List<IrInstruction>>();
         

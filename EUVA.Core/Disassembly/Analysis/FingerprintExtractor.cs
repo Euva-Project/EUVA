@@ -348,7 +348,7 @@ public static class FingerprintMatcher
         int dist    = LevenshteinFuzzy(a, lenA, b, lenB);
         int maxDist = Math.Max(lenA, lenB);
 
-        return 1f - (float)dist / (maxDist * 2);
+        return 1f - (float)dist / (maxDist * 2f);
     }
 
     private static int LevenshteinFuzzy(int[] a, int lenA, int[] b, int lenB)
