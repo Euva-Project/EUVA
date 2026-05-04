@@ -331,7 +331,6 @@ public static class ControlFlowStructurer
                 instr.Sources[0] = right;
                 instr.Sources[1] = left;
                 cond = ReverseConditionOperator(cond);
-                (left, right) = (instr.Sources[0], instr.Sources[1]);
             }
 
 

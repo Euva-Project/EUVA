@@ -115,9 +115,7 @@ public static class ExpressionSimplifier
             }
         }
 
-        if (instr.Sources.Length == 1)
-        {
-        }
+
 
         return false;
     }

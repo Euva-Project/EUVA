@@ -168,20 +168,7 @@ public static class TransformationPasses
             g.Add(v);
         }
 
-        foreach (var group in groups.Values)
-        {
-            var list = group.ToList();
-            for (int i = 0; i < list.Count; i++)
-            {
-                for (int j = i + 1; j < list.Count; j++)
-                {
-                    var v1 = list[i]; var v2 = list[j];
-                    for (int b = 0; b < blocks.Length; b++)
-                    {
-                    }
-                }
-            }
-        }
+
 
         return varToIndex;
     }

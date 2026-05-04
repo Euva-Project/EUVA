@@ -299,9 +299,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
 
         long funcAddr = layout.Nodes.Length > 0 ? layout.Nodes[0].StartOffset : 0;
         string originalName = $"sub_{funcAddr:X}";
-        if (pseudoGen != null && pseudoGen.TryGetGlobalRename(originalName, out var renamed))
-        {
-        }
+        pseudoGen?.TryGetGlobalRename(originalName, out _);
 
         var primaryCtx = pseudoGen?.GetPrimaryClassContext();
         bool isClassMethod = primaryCtx != null && primaryCtx.Value.Confidence >= 0.8;
@@ -312,7 +310,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         if (isClassMethod)
         {
             string className = $"Entity_{funcAddr:X}";
-            if (pseudoGen.TryGetGlobalRename("this_class", out var renamedClass))
+            if (pseudoGen!.TryGetGlobalRename("this_class", out var renamedClass))
                 className = renamedClass.Name;
 
             lines.Add(new PseudocodeLine($"class {className} /* mapped from {classVarName} */ {{", new[] { 
