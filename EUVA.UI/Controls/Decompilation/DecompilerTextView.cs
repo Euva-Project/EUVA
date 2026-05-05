@@ -385,8 +385,8 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
                 if (c != null && !flatLines[i].Text.Contains(" // "))
                 {
                     int commentStart = flatLines[i].Text.Length;
-                    string commentText = " // " + c;
-                    flatLines[i].Text += commentText;
+                    string commentText = $" // {c}";
+                    flatLines[i].Text = string.Concat(flatLines[i].Text, commentText);
                     
                     var newSpans = new List<PseudocodeSpan>(flatLines[i].Spans ?? Array.Empty<PseudocodeSpan>());
                     newSpans.Add(new PseudocodeSpan(commentStart, commentText.Length, PseudocodeSyntax.Comment));

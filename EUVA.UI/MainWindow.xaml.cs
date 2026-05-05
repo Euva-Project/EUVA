@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-
+using System.Text;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
@@ -1357,8 +1357,7 @@ catch (Exception iatEx)
                 case "log":
                     if (args.Count == 0) return 0;
                     string logInput = args[0];
-                    string logResult = "";
-                    
+                    var logResult = new StringBuilder();
                     int currentPos = 0;
                     while (currentPos < logInput.Length)
                     {
@@ -1370,12 +1369,12 @@ catch (Exception iatEx)
                             int endQuote = logInput.IndexOf('\"', currentPos + 1);
                             if (endQuote != -1)
                             {
-                                logResult += logInput.Substring(currentPos + 1, endQuote - currentPos - 1);
+                                logResult.Append(logInput.Substring(currentPos + 1, endQuote - currentPos - 1));
                                 currentPos = endQuote + 1;
                             }
                             else
                             {
-                                logResult += logInput.Substring(currentPos + 1);
+                                logResult.Append(logInput.Substring(currentPos + 1));
                                 currentPos = logInput.Length;
                             }
                         }
@@ -1394,7 +1393,7 @@ catch (Exception iatEx)
                             }
 
                             string token = (nextPlus == -1) ? logInput.Substring(currentPos) : logInput.Substring(currentPos, nextPlus - currentPos);
-                            logResult += EvaluateExpression(token.Trim()).ToString("X");
+                            logResult.Append(EvaluateExpression(token.Trim()).ToString("X"));
                             currentPos = (nextPlus == -1) ? logInput.Length : nextPlus;
                         }
 
