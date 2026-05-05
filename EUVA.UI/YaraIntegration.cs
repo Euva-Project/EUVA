@@ -204,7 +204,7 @@ public sealed class YaraEngine : IDisposable
 
                         foreach (var match in hit.Matches)
                         {
-                            long offset = (long)match.Offset;
+                            long offset = match.Offset;
 
                             string? id  = null;
                             string  raw = match.ToString() ?? "";
@@ -281,7 +281,7 @@ public sealed class YaraEngine : IDisposable
 
                                 foreach (var match in hit.Matches)
                                 {
-                                    long localOffset = (long)match.Offset; 
+                                    long localOffset = match.Offset; 
                                     if (localOffset >= scanSize) continue;
 
                                     long absOffset = capturedStart + localOffset;

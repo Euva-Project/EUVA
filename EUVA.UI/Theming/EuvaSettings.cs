@@ -43,7 +43,7 @@ public sealed class EuvaSettings
 
 
     private static string SettingsFilePath =>
-        Path.Combine(
+        Path.Join(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "EUVA", "settings.json");
 

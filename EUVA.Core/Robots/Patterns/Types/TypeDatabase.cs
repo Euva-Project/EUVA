@@ -50,6 +50,6 @@ public static class TypeDatabase
     public static string GetDefaultStructsFile()
     {
         string exeDir = AppDomain.CurrentDomain.BaseDirectory;
-        return Path.Combine(exeDir, "Robots", "Patterns", "Types", "structs.json");
+        return Path.Join(exeDir, "Robots", "Patterns", "Types", "structs.json");
     }
 }

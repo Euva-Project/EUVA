@@ -285,7 +285,7 @@ public partial class MainWindow : Window
 
 
     private readonly string ConfigPath =
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hotkey.cfg");
+        Path.Join(AppDomain.CurrentDomain.BaseDirectory, "hotkey.cfg");
 
     public MainWindow()
     {
@@ -387,7 +387,7 @@ public partial class MainWindow : Window
         ThemeManager.Instance.ApplyDefaultTheme();
             try
             {
-                string binSignaturesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "signatures.bin");
+                string binSignaturesPath = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "signatures.bin");
                 
                 if (File.Exists(binSignaturesPath))
                 {
@@ -395,7 +395,7 @@ public partial class MainWindow : Window
                     LogMessage("[EUVA] Signatures loaded from MessagePack binary.");
                 }
 
-                string fingerprintDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "standard_signatures.json.gz");
+                string fingerprintDbPath = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "standard_signatures.json.gz");
                 
                 await DatabaseParser.LoadFingerprintsGzAsync(fingerprintDbPath);
 
@@ -412,7 +412,7 @@ public partial class MainWindow : Window
                 MessageBox.Show($"Warning: Error occurred while loading knowledge base!\n{ex.ToString()}", 
                                 "EUVA Engine", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
-        string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "euva.cfg");
+        string configPath = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "euva.cfg");
         if (File.Exists(configPath))
         {
             try
@@ -453,7 +453,7 @@ public partial class MainWindow : Window
         _detectorManager.RegisterDetector(new UPXDetector());
         _detectorManager.RegisterDetector(new ThemidaDetector());
 
-        string pluginsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
+        string pluginsDir = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
         if (!Directory.Exists(pluginsDir))
             Directory.CreateDirectory(pluginsDir);
 
@@ -464,8 +464,8 @@ public partial class MainWindow : Window
 
     private void UpdateGlobalConfig(string? htkPath = null, string? themePath = null)
     {
-        string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "euva.cfg");
-        string defaultTheme = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Theming", "default.themes");
+        string configPath = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "euva.cfg");
+        string defaultTheme = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "Theming", "default.themes");
         string currentHtk = "", currentTheme = defaultTheme, alwaysDefault = defaultTheme;
 
         if (File.Exists(configPath))

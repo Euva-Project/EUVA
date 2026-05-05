@@ -207,7 +207,7 @@ public sealed class PseudocodeGenerator
             if (st.Name.Contains("RCX") && st.Fields.Count >= 2)
             {
                 var fields = new HashSet<ulong>();
-                foreach (var kv in st.Fields) fields.Add((ulong)(long)kv.Key);
+                foreach (var kv in st.Fields) fields.Add((ulong)kv.Key);
                 return new ClassContext
                 {
                     Confidence = Math.Min(1.0, st.AccessCount * 0.15),

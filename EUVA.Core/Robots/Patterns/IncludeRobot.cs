@@ -28,7 +28,7 @@ public sealed class IncludeRobot
     private void LoadRules()
     {
         string rulesDir = PatternLoader.GetDefaultRulesDir();
-        string filePath = Path.Combine(rulesDir, "includes.jsonl");
+        string filePath = Path.Join(rulesDir, "includes.jsonl");
 
         if (!File.Exists(filePath))
         {

@@ -50,7 +50,7 @@ public partial class MainWindow
     private void InitDumpWatcher()
     {
         if (_dumpWatcher != null) return;
-        string dumpsDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Dumps");
+        string dumpsDir = System.IO.Path.Join(AppDomain.CurrentDomain.BaseDirectory, "Dumps");
         if (!System.IO.Directory.Exists(dumpsDir)) System.IO.Directory.CreateDirectory(dumpsDir);
 
         _dumpWatcher = new System.IO.FileSystemWatcher(dumpsDir, "*.dump");
@@ -611,7 +611,7 @@ public partial class MainWindow
         {
             if (rva >= sec.VirtualAddress && rva < (long)sec.VirtualAddress + sec.Size)
             {
-                return (long)(rva - sec.VirtualAddress + sec.FileOffset);
+                return rva - sec.VirtualAddress + sec.FileOffset;
             }
         }
         return rva; 
@@ -901,7 +901,7 @@ public partial class MainWindow
                     _pseudocodeGen.Pipeline?.LastSignature,
                     _pseudocodeGen.UserRenames);
 
-                string dumpPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Dumps", $"func_{_currentFunctionOffset:X}.dump");
+                string dumpPath = System.IO.Path.Join(AppDomain.CurrentDomain.BaseDirectory, "Dumps", $"func_{_currentFunctionOffset:X}.dump");
                 string cxxContext = System.IO.File.Exists(dumpPath) ? System.IO.File.ReadAllText(dumpPath) : "";
                 string combinedContext = $"-- IR Context --\n{miniIr}\n\n-- C++ Final Dump --\n{cxxContext}";
 
@@ -1002,7 +1002,7 @@ public partial class MainWindow
                     _pseudocodeGen.Pipeline?.LastSignature,
                     _pseudocodeGen.UserRenames);
 
-                string dumpPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Dumps", $"func_{_currentFunctionOffset:X}.dump");
+                string dumpPath = System.IO.Path.Join(AppDomain.CurrentDomain.BaseDirectory, "Dumps", $"func_{_currentFunctionOffset:X}.dump");
                 string cxxContext = System.IO.File.Exists(dumpPath) ? System.IO.File.ReadAllText(dumpPath) : "";
                 string combinedContext = $"-- IR Context (Structural clues) --\n{miniIr}\n\n-- Finished C++ (Target to rewrite) --\n{cxxContext}";
 

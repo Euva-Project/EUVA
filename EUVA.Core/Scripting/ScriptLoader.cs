@@ -26,7 +26,7 @@ public sealed class ScriptLoader
     private ScriptLoader()
     {   
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        ScriptsDirectory = Path.Combine(baseDir, "Scripts");
+        ScriptsDirectory = Path.Join(baseDir, "Scripts");
         
         foreach (PassStage stage in Enum.GetValues<PassStage>())
         {

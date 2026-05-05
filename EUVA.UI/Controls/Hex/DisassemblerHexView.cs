@@ -343,7 +343,7 @@ public sealed class DisassemblerHexView : FrameworkElement
                 byte* ptr = null;
                 _accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
                 try {
-                    long off = -(long)_accessor.PointerOffset;
+                    long off = -_accessor.PointerOffset;
                     _isMzFile = ptr[off] == 0x4D && ptr[off + 1] == 0x5A;
                 } finally { _accessor.SafeMemoryMappedViewHandle.ReleasePointer(); }
             }
@@ -496,7 +496,7 @@ public sealed class DisassemblerHexView : FrameworkElement
         int readLen = (int)Math.Min((long)maxLines * MaxInstructionBytes, _fileLength - _topOffset);
         if (readLen <= 0) { _visibleLineCount = 0; _anchorCount = 0; return; }
 
-        long actualOffset = _topOffset - (long)_accessor!.PointerOffset;
+        long actualOffset = _topOffset - _accessor!.PointerOffset;
         byte* readPtr = mapPtr + actualOffset;
 
         _visibleLineCount = _engine.DecodeVisible(readPtr, readLen, _topOffset, _visibleLines, maxLines);
@@ -723,7 +723,7 @@ public sealed class DisassemblerHexView : FrameworkElement
                 byte* ptr = null;
                 _accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
                 try {
-                    long actualOffset = _topOffset - (long)_accessor.PointerOffset;
+                    long actualOffset = _topOffset - _accessor.PointerOffset;
                     int readLen = (int)Math.Min((long)n * MaxInstructionBytes + 64, _fileLength - _topOffset);
                     if (readLen > 0)
                     {
@@ -755,7 +755,7 @@ public sealed class DisassemblerHexView : FrameworkElement
             try {
                 
                 long syncedStart = _engine.GetSyncOffset(ptr, (int)_fileLength, 0, safeStart, 128);
-                long actOff = syncedStart - (long)_accessor.PointerOffset;
+                long actOff = syncedStart - _accessor.PointerOffset;
                 
                 int lenToTop = (int)(_topOffset - syncedStart);
                 byte* winPtr = ptr + actOff;
