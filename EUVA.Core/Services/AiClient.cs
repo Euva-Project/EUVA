@@ -13,7 +13,7 @@ public sealed class AiClient : IDisposable
 
     public async Task<string> RequestRenamesAsync(string apiKey, string systemPrompt, string miniIr, string baseUrl, string modelName)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, baseUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Post, baseUrl);
         
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
@@ -39,7 +39,7 @@ public sealed class AiClient : IDisposable
 
         request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
-        var response = await _client.SendAsync(request);
+        using var response = await _client.SendAsync(request);
         var content = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)

@@ -49,10 +49,10 @@ public sealed class VirusTotalClient : IDisposable
 
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, BaseUrl + sha256);
+            using var request = new HttpRequestMessage(HttpMethod.Get, BaseUrl + sha256);
             request.Headers.Add("x-apikey", _apiKey);
 
-            var response = await _http.SendAsync(request);
+            using var response = await _http.SendAsync(request);
             var body = await response.Content.ReadAsStringAsync();
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
