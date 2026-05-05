@@ -396,7 +396,7 @@ public sealed class DisassemblerHexView : FrameworkElement
 
     private void RebuildGlyphs()
     {
-        if (_pixelsPerDip == 0) return;
+        if (_pixelsPerDip <= 0) return;
         _glyphCache?.Clear();
         var tf = new Typeface(new FontFamily("Consolas"),
             FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
