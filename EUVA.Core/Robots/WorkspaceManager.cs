@@ -11,7 +11,7 @@ public static class WorkspaceManager
 
     static WorkspaceManager()
     {
-        DumpsDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Dumps");
+        DumpsDirectory = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "Dumps");
     }
 
     public static string CreateFunctionWorkspace(long funcAddress, string code)
@@ -28,10 +28,10 @@ public static class WorkspaceManager
             }
         }
 
-        string dumpPath = Path.Combine(DumpsDirectory, $"func_{funcAddress:X}.dump");
+        string dumpPath = Path.Join(DumpsDirectory, $"func_{funcAddress:X}.dump");
         File.WriteAllText(dumpPath, code);
 
-        string annPath = Path.Combine(DumpsDirectory, $"func_{funcAddress:X}.annotations");
+        string annPath = Path.Join(DumpsDirectory, $"func_{funcAddress:X}.annotations");
         File.WriteAllText(annPath, ""); 
 
         return dumpPath; 

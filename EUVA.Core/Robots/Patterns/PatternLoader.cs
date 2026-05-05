@@ -46,7 +46,7 @@ public static class PatternLoader
 
     public static List<TransformRule> LoadByCategory(string rulesDir, string category)
     {
-        string filePath = Path.Combine(rulesDir, $"{category}.jsonl");
+        string filePath = Path.Join(rulesDir, $"{category}.jsonl");
         if (!File.Exists(filePath)) return new List<TransformRule>();
 
         var rules = LoadFile(filePath);
@@ -95,6 +95,6 @@ public static class PatternLoader
 
     public static string GetDefaultRulesDir()
     {
-        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Robots", "Patterns", "Rules");
+        return Path.Join(AppDomain.CurrentDomain.BaseDirectory, "Robots", "Patterns", "Rules");
     }
 }
