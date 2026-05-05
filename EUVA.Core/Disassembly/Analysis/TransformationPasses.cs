@@ -10,8 +10,6 @@ public static class TransformationPasses
 {
     public static void Optimize(IrBlock[] blocks)
     {
-        int initialCount = blocks.Sum(b => b.Instructions.Count(i => !i.IsDead));
-
         for (int i = 0; i < 5; i++)
         {
             EliminateDeadVariables(blocks);
@@ -20,8 +18,6 @@ public static class TransformationPasses
         }
         FoldApiCalls(blocks);
         
-        int finalCount = blocks.Sum(b => b.Instructions.Count(i => !i.IsDead));
-
         AnalyzePointers(blocks);
         
         var coalescedGroups = CoalesceVariables(blocks);
@@ -187,14 +183,6 @@ public static class TransformationPasses
                     if (op.Kind == IrOperandKind.Memory && op.MemBase != Register.None && op.MemIndex != Register.None)
                     {
                       
-                         var type = op.MemScale switch
-                         {
-                             1 => new TypeInfo { BaseType = PrimitiveType.UInt8, PointerLevel = 1 },
-                             2 => new TypeInfo { BaseType = PrimitiveType.UInt16, PointerLevel = 1 },
-                             4 => new TypeInfo { BaseType = PrimitiveType.UInt32, PointerLevel = 1 },
-                             8 => new TypeInfo { BaseType = PrimitiveType.UInt64, PointerLevel = 1 },
-                             _ => TypeInfo.Unknown
-                         };
                     }
                 }
             }
