@@ -928,8 +928,8 @@ public partial class MainWindow
                     pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l)));
                 }
                 
-                _decompTextView?.OverrideText(pcLines.ToArray());
-                _decompTextView?.RefreshView();
+                _decompTextView.OverrideText(pcLines.ToArray());
+                _decompTextView.RefreshView();
 
                 LogMessage("[Decomp] AI Function summary generated and injected into dump.");
                 rejectAiBtn.Visibility = Visibility.Visible;
@@ -1034,8 +1034,8 @@ public partial class MainWindow
                     pcLines.Add(new EUVA.Core.Disassembly.PseudocodeLine(l, BuildSpansFast(l)));
                 }
                 
-                _decompTextView?.OverrideText(pcLines.ToArray());
-                _decompTextView?.RefreshView();
+                _decompTextView.OverrideText(pcLines.ToArray());
+                _decompTextView.RefreshView();
 
                 LogMessage($"[Decomp] AI Refactoring complete: Full C++ rewritten.");
                 rejectAiBtn.Visibility = Visibility.Visible;

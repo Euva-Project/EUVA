@@ -708,7 +708,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         if (r < 0) r = 0;
         if (r >= _flatLines.Length) r = _flatLines.Length - 1;
         
-        int c = (_selStart?.Row == _cursorLine) ? (_selStart?.Col ?? 0) : 0;
+        int c = (_selStart is { Row: var row, Col: var col } && row == _cursorLine) ? col : 0;
         c += cDelta;
         
         int textLen = _flatLines[r].Text?.Length ?? 0;
