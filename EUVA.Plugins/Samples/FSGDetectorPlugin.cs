@@ -119,7 +119,7 @@ public class FSGDetectorPlugin : IDetectorPlugin
             }
 
 
-            if (baseConfidence == 0.0 && allSignatures.Count == 0)
+            if (baseConfidence < 0.001 && allSignatures.Count == 0)
                 return null;
 
             return new DetectionResult

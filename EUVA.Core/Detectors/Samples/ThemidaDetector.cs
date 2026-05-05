@@ -74,7 +74,7 @@ public class ThemidaDetector : IDetector
             if (entropy > 7.5)
                 confidence += 0.3;
 
-            if (confidence == 0.0)
+            if (confidence < 0.001)
                 return null;
 
             return new DetectionResult

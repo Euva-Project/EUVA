@@ -71,7 +71,7 @@ public class UPXDetector : IDetector
             if (entropy > EntropyThreshold)   
                 confidence += EntropyConfidence;
 
-            if (confidence == 0.0)
+            if (confidence < 0.001)
                 return null;
 
 

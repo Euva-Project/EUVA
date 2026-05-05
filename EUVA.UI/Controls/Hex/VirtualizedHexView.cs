@@ -297,7 +297,7 @@ public class VirtualizedHexView : FrameworkElement
     }
     private void RebuildGlyphCache()
     {
-        if (_pixelsPerDip == 0) return;
+        if (_pixelsPerDip < 0.001) return;
         _glyphCache?.Clear();
         _glyphCache = new GlyphCache(
             GetGlyphTypeface(), _fontSize,
