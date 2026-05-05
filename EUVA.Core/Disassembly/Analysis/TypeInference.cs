@@ -434,10 +434,6 @@ public static class TypeInference
                         
                         if (common.BaseType == PrimitiveType.Void && srcType.BaseType != PrimitiveType.Void)
                             common = srcType;
-                        else if (common.BaseType != PrimitiveType.Void && srcType.BaseType == PrimitiveType.Void)
-                        {
-                            
-                        }
                         else
                         {
                             return TypeInfo.Unknown; 

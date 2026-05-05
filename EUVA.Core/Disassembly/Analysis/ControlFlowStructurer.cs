@@ -418,11 +418,7 @@ public static class ControlFlowStructurer
             if (block.Terminator?.Opcode == IrOpcode.Branch && block.Successors.Count == 1)
             {
                 int target = block.Successors[0];
-                if (!visited.Contains(target) && target > i)
-                {
-                   
-                }
-                else if (!visited.Contains(target))
+                if (!visited.Contains(target) && target <= i)
                 {
                     seq.Children.Add(new GotoNode { TargetBlockIndex = target });
                 }

@@ -322,10 +322,6 @@ public partial class MainWindow
                 try
                 {
 
-                    if (_mapper?.RootStructure != null)
-                    {
-                        var expDir = _mapper.RootStructure.FindByPath("Data Directories", "Export Directory");
-                    }
 
                     var discoverer = new FunctionDiscoverer();
                     _allFunctions = discoverer.Discover(ptr, HexView.FileLength, ep, _executableRanges, _peBitness);
