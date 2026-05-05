@@ -225,11 +225,11 @@ public partial class MainWindow
                     {
                         if (field.Name == "VirtualAddress" && field.Value != null)
                         {
-                            try { virtualAddr = Convert.ToUInt32(field.Value); } catch { }
+                            try { virtualAddr = Convert.ToUInt32(field.Value); } catch { /* ignore */ }
                         }
                         else if (field.Name == "Characteristics" && field.Value != null)
                         {
-                            try { characteristics = Convert.ToUInt32(field.Value); } catch { }
+                            try { characteristics = Convert.ToUInt32(field.Value); } catch { /* ignore */ }
                         }
                     }
 

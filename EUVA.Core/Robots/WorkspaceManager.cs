@@ -24,7 +24,7 @@ public static class WorkspaceManager
         {
             foreach (var file in Directory.GetFiles(DumpsDirectory))
             {
-                try { File.Delete(file); } catch {  }
+                try { File.Delete(file); } catch { /* ignore */ }
             }
         }
 
@@ -96,7 +96,7 @@ public static class WorkspaceManager
     {
         if (Directory.Exists(DumpsDirectory))
         {
-            try { Directory.Delete(DumpsDirectory, true); } catch { }
+            try { Directory.Delete(DumpsDirectory, true); } catch { /* ignore */ }
         }
     }
 }

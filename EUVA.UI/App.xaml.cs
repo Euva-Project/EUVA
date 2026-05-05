@@ -52,7 +52,7 @@ public partial class App : Application
         {
             EUVA.Core.Robots.WorkspaceManager.PurgeAllDumps();
         }
-        catch { }
+        catch { /* ignore */ }
         base.OnExit(e);
     }
 }

@@ -128,7 +128,7 @@ public sealed class FingerprintIndex
             var opts = new JsonSerializerOptions { WriteIndented = false, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
             JsonSerializer.Serialize(gz, _records, opts);
         }
-        catch { }
+        catch { /* ignore */ }
     }
 
     public void AddRecord(FunctionRecord record)

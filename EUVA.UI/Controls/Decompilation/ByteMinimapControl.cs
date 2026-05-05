@@ -170,8 +170,8 @@ public class ByteMinimapControl : FrameworkElement
                     InvalidateVisual();
                 });
             }
-            catch (OperationCanceledException) { }
-            catch { }
+            catch (OperationCanceledException) { /* ignore */ }
+            catch { /* ignore */ }
         }, ct);
     }
 

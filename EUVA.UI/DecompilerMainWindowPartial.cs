@@ -85,7 +85,7 @@ public partial class MainWindow
                     _decompTextView?.OverrideText(pcLines.ToArray());
                     LogMessage($"[MCP] Live-reload: {System.IO.Path.GetFileName(e.FullPath)} updated ({newLines.Length} lines).");
                 }
-                catch { }
+                catch { /* ignore */ }
             });
         }, null, 150, System.Threading.Timeout.Infinite);
     }
@@ -1272,15 +1272,15 @@ public partial class MainWindow
                     {
                         if (field.Name == "VirtualAddress" && field.Value != null)
                         {
-                            try { virtualAddr = Convert.ToUInt32(field.Value); } catch { }
+                            try { virtualAddr = Convert.ToUInt32(field.Value); } catch { /* ignore */ }
                         }
                         else if (field.Name == "VirtualSize" && field.Value != null)
                         {
-                            try { virtualSize = Convert.ToUInt32(field.Value); } catch { }
+                            try { virtualSize = Convert.ToUInt32(field.Value); } catch { /* ignore */ }
                         }
                         else if (field.Name == "Characteristics" && field.Value != null)
                         {
-                            try { characteristics = Convert.ToUInt32(field.Value); } catch { }
+                            try { characteristics = Convert.ToUInt32(field.Value); } catch { /* ignore */ }
                         }
                     }
                     if (ptrRawData < 0 || ptrRawData >= HexView.FileLength) ptrRawData = 0;

@@ -771,7 +771,7 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
 
         if (sb.Length > 0)
         {
-            try { Clipboard.SetText(sb.ToString()); } catch { }
+            try { Clipboard.SetText(sb.ToString()); } catch { /* ignore */ }
         }
     }
 

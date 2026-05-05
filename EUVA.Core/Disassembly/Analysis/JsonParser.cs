@@ -263,7 +263,7 @@ public static class SignatureCache
                 var rx = new Regex(rt.Pattern, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
                 _compiledRegexes.Add((rx, rt.MinLength, rt.NewName));
             }
-            catch { }
+            catch { /* ignore */ }
         }
     }
 
@@ -277,7 +277,7 @@ public static class SignatureCache
             foreach (var (offsetStr, fieldName) in rawFields)
             {
                 if (string.IsNullOrWhiteSpace(offsetStr) || string.IsNullOrWhiteSpace(fieldName)) continue;
-                try { compiled.TryAdd((int)ParseUInt64(offsetStr), fieldName); } catch { }
+                try { compiled.TryAdd((int)ParseUInt64(offsetStr), fieldName); } catch { /* ignore */ }
             }
             if (compiled.Count > 0) StructFieldLookup[structName] = compiled;
         }

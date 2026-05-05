@@ -143,7 +143,7 @@ public class PEMapper : IBinaryMapper
         
         
         ulong imageBaseNumeric = 0;
-        try { imageBaseNumeric = Convert.ToUInt64(imageBaseVal ?? 0UL); } catch { }
+        try { imageBaseNumeric = Convert.ToUInt64(imageBaseVal ?? 0UL); } catch { /* ignore */ }
         
         AddField(optHeaderNode, "ImageBase", 24, imageBaseSize,
             imageBaseNumeric, $"0x{imageBaseNumeric:X}");
@@ -286,7 +286,7 @@ public class PEMapper : IBinaryMapper
                 dirNode.AddChild(detailedNode);
             }
         }
-        catch { }
+        catch { /* ignore */ }
         
 
         root.AddChild(dirNode);

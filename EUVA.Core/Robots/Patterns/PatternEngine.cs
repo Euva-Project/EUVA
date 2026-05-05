@@ -85,7 +85,7 @@ public sealed class PatternEngine
                 return Regex.Replace(line, rule.Pattern, rule.Replacement);
             }
         }
-        catch (RegexMatchTimeoutException) { }
+        catch (RegexMatchTimeoutException) { /* ignore */ }
         catch (ArgumentException ex)
         {
             Console.ForegroundColor = ConsoleColor.Red;
@@ -168,7 +168,7 @@ public sealed class PatternEngine
         }
         catch (Exception)
         {
-            return line;
+            return line; 
         }
     }
 
