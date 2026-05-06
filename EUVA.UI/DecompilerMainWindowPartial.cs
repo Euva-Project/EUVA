@@ -1185,7 +1185,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            LogMessage($"[Decomp] Analysis failed: {ex.ToString()}");
+            LogMessage($"[Decomp] Analysis failed: {ex}");
         }
     }
 

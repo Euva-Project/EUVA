@@ -10,10 +10,10 @@ public delegate void SpanScanner(ReadOnlySpan<byte> span);
 
 public sealed class MappedDumpContext : IDisposable
 {
-    private MemoryMappedFile? _mmf;
-    private MemoryMappedViewAccessor? _accessor;
+    private readonly MemoryMappedFile? _mmf;
+    private readonly MemoryMappedViewAccessor? _accessor;
 
-    private FileStream? _fs;
+    private readonly FileStream? _fs;
 
     public MappedDumpContext(string dumpPath)
     {

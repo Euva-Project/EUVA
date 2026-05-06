@@ -13,7 +13,7 @@ namespace EUVA.UI.Parsers
         public Dictionary<ulong, string> ParsedImports { get; } = new Dictionary<ulong, string>();
         public Dictionary<long, string> StringCache { get; } = new Dictionary<long, string>();
 
-        private List<(uint Rva, byte[] Data)> _dataSections = new();
+        private readonly List<(uint Rva, byte[] Data)> _dataSections = new();
         private ulong _baseAddress;
 
         private struct SectionHeader

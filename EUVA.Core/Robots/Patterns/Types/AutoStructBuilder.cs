@@ -97,7 +97,7 @@ public static class AutoStructBuilder
             else if (contextLine.Contains("void*") || contextLine.Contains("reinterpret_cast")) inferredType = "void*";
         }
 
-        if (!fields.ContainsKey(offset) || fields[offset] == "DWORD")
+        if (!fields.TryGetValue(offset, out var existingType) || existingType == "DWORD")
         {
             fields[offset] = inferredType;
         }

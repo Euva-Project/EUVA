@@ -114,10 +114,10 @@ public class VirtualizedHexView : FrameworkElement
     private long SelectionMin => Math.Min(_selectionStart, _selectionEnd);
     private long SelectionMax => Math.Max(_selectionStart, _selectionEnd);
     private long _selectedOffset = -1;
-    private int _bytesPerLine = 24;
-    private double _lineHeight = 20;
-    private double _charWidth = 9;
-    private double _fontSize = 13;
+    private readonly int _bytesPerLine = 24;
+    private readonly double _lineHeight = 20;
+    private readonly double _charWidth = 9;
+    private readonly double _fontSize = 13;
     private double _pixelsPerDip = 1.0;
 
     private int CellW => (int)Math.Ceiling(_charWidth * _pixelsPerDip);
@@ -133,9 +133,9 @@ public class VirtualizedHexView : FrameworkElement
 
     
     private GlyphCache? _glyphCache;
-    private char[] _asciiLookupTable = new char[256];
+    private readonly char[] _asciiLookupTable = new char[256];
     private int _currentCodePage = 1251;
-    private byte[] _lineBuffer = new byte[256];
+    private readonly byte[] _lineBuffer = new byte[256];
     private readonly object _modLock = new();
     private readonly HashSet<long> _modifiedOffsets = new();
     private volatile HashSet<long> _modifiedSnapshot = new();

@@ -34,7 +34,7 @@ namespace EUVA.UI;
 
 public static class HotkeyManager
 {
-    private static Dictionary<(ModifierKeys, Key), EUVAAction> _bindings = new();
+    private static readonly Dictionary<(ModifierKeys, Key), EUVAAction> _bindings = new();
 
     public static EUVAAction GetAction(ModifierKeys mod, Key key)
         => _bindings.TryGetValue((mod, key), out var a) ? a : EUVAAction.None;
@@ -409,7 +409,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Warning: Error occurred while loading knowledge base!\n{ex.ToString()}", 
+                MessageBox.Show($"Warning: Error occurred while loading knowledge base!\n{ex}", 
                                 "EUVA Engine", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         string configPath = Path.Join(AppDomain.CurrentDomain.BaseDirectory, "euva.cfg");

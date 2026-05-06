@@ -11,7 +11,7 @@ public static class ExpressionInliner
         public IrInstruction? DefInstr;
         public IrBlock? DefBlock;
         public int UseCount;
-        public List<(IrBlock Block, IrInstruction Instr)> Uses = new();
+        public readonly List<(IrBlock Block, IrInstruction Instr)> Uses = new();
     }
 
     public static int Inline(IrBlock[] blocks)

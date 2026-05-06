@@ -9,7 +9,7 @@ namespace EUVA.Core.Robots.Patterns.Types;
 
 public static class TypeDatabase
 {
-    private static Dictionary<string, StructDefinition> _structs = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, StructDefinition> _structs = new(StringComparer.OrdinalIgnoreCase);
 
     public static IReadOnlyDictionary<string, StructDefinition> Structs => _structs;
 
