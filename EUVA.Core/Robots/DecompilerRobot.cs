@@ -63,6 +63,7 @@ public sealed class DecompilerRobot : RobotBase
         catch (Exception ex)
         {
             SetStatus(RobotStatus.Faulted);
+            Console.WriteLine($"[FATAL ERROR] {Role} crashed: {ex}");
             return new RobotResult
             {
                 RobotId     = Id,

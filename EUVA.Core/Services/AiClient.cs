@@ -54,9 +54,17 @@ public sealed class AiClient : IDisposable
         {
             return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? string.Empty;
         }
+        catch (KeyNotFoundException kex)
+        {
+            throw new Exception($"AI Response missing expected properties (OpenAI format). Details: {kex.Message}. Content: {content}");
+        }
+        catch (JsonException jex)
+        {
+            throw new Exception($"AI Response is not valid JSON. Error: {jex.Message}. Content: {content}");
+        }
         catch (Exception ex)
         {
-            throw new Exception($"Response format incompatible with OpenAI protocol. Error: {ex.Message}. Content: {content}");
+            throw new Exception($"Unexpected error parsing AI response. Error: {ex.Message}. Content: {content}");
         }
     }
 

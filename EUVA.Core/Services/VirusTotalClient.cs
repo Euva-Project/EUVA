@@ -73,9 +73,17 @@ public sealed class VirusTotalClient : IDisposable
         {
             Log("[VT] Request timed out.", "#F9E2AF");
         }
+        catch (JsonException jex)
+        {
+            Log($"[VT] JSON Parse Error: {jex.Message}", "#F38BA8");
+        }
+        catch (KeyNotFoundException kex)
+        {
+            Log($"[VT] Response missing expected fields: {kex.Message}", "#F38BA8");
+        }
         catch (Exception ex)
         {
-            Log($"[VT] Error: {ex.Message}", "#F38BA8");
+            Log($"[VT] Unexpected error: {ex.Message}", "#F38BA8");
         }
     }
 

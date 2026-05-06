@@ -44,7 +44,11 @@ public sealed class ScriptLoader
         if (!Directory.Exists(ScriptsDirectory))
         {
             try { Directory.CreateDirectory(ScriptsDirectory); }
-            catch { return; }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [INIT ERROR] Failed to create scripts directory: {ex.Message}");
+                return;
+            }
         }
 
         var scriptFiles = Directory.GetFiles(ScriptsDirectory, "*.cs", SearchOption.AllDirectories);
@@ -76,7 +80,7 @@ public sealed class ScriptLoader
             }
             catch (Exception ex)
             {
-                OnLogMessage?.Invoke($"[Glass Engine] Compile Error! File: {Path.GetFileName(file)}\n{ex.Message}\n");
+                OnLogMessage?.Invoke($"[Glass Engine] Compile Error! File: {Path.GetFileName(file)}\nType: {ex.GetType().Name}\nMessage: {ex.Message}\n");
             }
         }
         

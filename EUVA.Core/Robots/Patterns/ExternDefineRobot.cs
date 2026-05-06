@@ -51,10 +51,22 @@ public sealed class ExternDefineRobot
             Console.WriteLine($"[ExternDefineRobot] Loaded {_constants.Count} constant patterns from signatures.json");
             Console.ResetColor();
         }
+        catch (JsonException jex)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[ExternDefineRobot] JSON Error in signatures.json: {jex.Message}");
+            Console.ResetColor();
+        }
+        catch (IOException iex)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[ExternDefineRobot] IO Error reading signatures.json: {iex.Message}");
+            Console.ResetColor();
+        }
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"[ExternDefineRobot] Failed to load signatures.json: {ex.Message}");
+            Console.WriteLine($"[ExternDefineRobot] Unexpected error: {ex.Message}");
             Console.ResetColor();
         }
     }

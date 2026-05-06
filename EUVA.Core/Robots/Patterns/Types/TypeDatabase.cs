@@ -31,9 +31,17 @@ public static class TypeDatabase
                 }
             }
         }
+        catch (JsonException jex)
+        {
+            Console.WriteLine($"[TypeDatabase] JSON format error in {jsonFilePath}: {jex.Message}");
+        }
+        catch (IOException iex)
+        {
+            Console.WriteLine($"[TypeDatabase] IO Error loading {jsonFilePath}: {iex.Message}");
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"[TypeDatabase] Error loading {jsonFilePath}: {ex.Message}");
+            Console.WriteLine($"[TypeDatabase] Unexpected error loading {jsonFilePath}: {ex.Message}");
         }
     }
 

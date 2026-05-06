@@ -39,9 +39,9 @@ public partial class App : Application
                 tm.LoadTheme(path);
             }
         }
-            catch (Exception ex)
+        catch (Exception ex)
         {
-            ThemeDiagnostics.Error($"Theme init failed: {ex.Message}. Using defaults.");
+            ThemeDiagnostics.Error($"Theme init failed: {ex.GetType().Name}: {ex.Message}. Using defaults.");
             ThemeManager.Instance.ApplyDefaultTheme();
         }
     }
@@ -52,7 +52,10 @@ public partial class App : Application
         {
             EUVA.Core.Robots.WorkspaceManager.PurgeAllDumps();
         }
-        catch { /* ignore */ }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[FATAL] Failed to purge dumps on exit: {ex.Message}");
+        }
         base.OnExit(e);
     }
 }

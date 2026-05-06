@@ -166,8 +166,9 @@ public sealed class PatternEngine
                     return ApplyRegexRule(line, rule);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[PatternEngine] Error applying rule {rule.ContextKey}: {ex.Message}");
             return line; 
         }
     }
