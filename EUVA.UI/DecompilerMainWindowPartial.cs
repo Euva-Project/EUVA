@@ -375,13 +375,10 @@ public partial class MainWindow
             {
                 int rel = *(int*)(ptr + i + 1);
                 long target = i + 5 + rel; 
-                if (target >= start && target < end && !functions.ContainsKey(target))
+                if (target >= start && target < end && !functions.ContainsKey(target) && 
+                    (ptr[target] == 0x55 || ptr[target] == 0x8B || ptr[target] == 0x33))
                 {
-                    
-                    if (ptr[target] == 0x55 || ptr[target] == 0x8B || ptr[target] == 0x33) 
-                    {
-                        functions[target] = new FunctionItem { Name = $"sub_{target:X}", Address = target };
-                    }
+                    functions[target] = new FunctionItem { Name = $"sub_{target:X}", Address = target };
                 }
             }
         }

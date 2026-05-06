@@ -87,11 +87,11 @@ public sealed class IncludeRobot
 
             foreach (var rule in _rules)
             {
-                if (Regex.IsMatch(line, $@"\b{Regex.Escape(rule.Token)}\b") || 
-                    (rule.Token.Contains("::") && line.Contains(rule.Token)))
+                if ((Regex.IsMatch(line, $@"\b{Regex.Escape(rule.Token)}\b") || 
+                     (rule.Token.Contains("::") && line.Contains(rule.Token))) &&
+                    !string.IsNullOrEmpty(rule.Header))
                 {
-                    if (!string.IsNullOrEmpty(rule.Header))
-                        includes.Add($"include {rule.Header}");
+                    includes.Add($"include {rule.Header}");
                 }
             }
         }

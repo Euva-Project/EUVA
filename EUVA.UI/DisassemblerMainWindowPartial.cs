@@ -324,7 +324,7 @@ public partial class MainWindow
 
         _centerTabControl.SelectionChanged += (s, e) =>
         {
-            if (e.Source != _centerTabControl) return;
+            if (!ReferenceEquals(e.Source, _centerTabControl)) return;
             if (_centerTabControl.SelectedItem is TabItem ti)
             {
                 string header = ti.Header?.ToString() ?? "";

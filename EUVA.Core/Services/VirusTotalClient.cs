@@ -115,10 +115,10 @@ public sealed class VirusTotalClient : IDisposable
         if (attrs.TryGetProperty("type_description", out var typeDesc))
            Log($"\n[VT] Type: {typeDesc.GetString()}", "#CDD6F4");
 
-        if (attrs.TryGetProperty("popular_threat_classification", out var threatClass))
+        if (attrs.TryGetProperty("popular_threat_classification", out var threatClass) && 
+            threatClass.TryGetProperty("suggested_threat_label", out var label))
         {
-            if (threatClass.TryGetProperty("suggested_threat_label", out var label))
-                Log($"[VT] Threat label: {label.GetString()}", color);
+            Log($"[VT] Threat label: {label.GetString()}", color);
         }
 
         if (attrs.TryGetProperty("names", out var names) && names.GetArrayLength() > 0)
@@ -135,10 +135,10 @@ public sealed class VirusTotalClient : IDisposable
             }
         }
 
-        if (attrs.TryGetProperty("signature_info", out var sigInfo))
+        if (attrs.TryGetProperty("signature_info", out var sigInfo) && 
+            sigInfo.TryGetProperty("subject", out var subject))
         {
-            if (sigInfo.TryGetProperty("subject", out var subject))
-                Log($"[VT] Signed by: {subject.GetString()}", "#94E2D5");
+            Log($"[VT] Signed by: {subject.GetString()}", "#94E2D5");
         }
     }
 

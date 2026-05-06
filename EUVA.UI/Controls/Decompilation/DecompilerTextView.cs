@@ -466,15 +466,13 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
 
         foreach (var span in line.Spans)
         {
-            if (col >= span.Start && col <= span.Start + span.Length)
+            if (col >= span.Start && col <= span.Start + span.Length &&
+                (span.Kind == PseudocodeSyntax.Variable || span.Kind == PseudocodeSyntax.VariableAi ||
+                 span.Kind == PseudocodeSyntax.Function || span.Kind == PseudocodeSyntax.Type ||
+                 span.Kind == PseudocodeSyntax.Keyword))
             {
-                if (span.Kind == PseudocodeSyntax.Variable || span.Kind == PseudocodeSyntax.VariableAi ||
-                    span.Kind == PseudocodeSyntax.Function || span.Kind == PseudocodeSyntax.Type ||
-                    span.Kind == PseudocodeSyntax.Keyword)
-                {
-                    _highlightSymbol = line.Text.Substring(span.Start, Math.Min(span.Length, line.Text.Length - span.Start));
-                    break;
-                }
+                _highlightSymbol = line.Text.Substring(span.Start, Math.Min(span.Length, line.Text.Length - span.Start));
+                break;
             }
         }
     }
@@ -808,25 +806,22 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
                 {
                     LineClicked?.Invoke(this, line.Address);
                 }
-                else if (e.ClickCount == 2)
+                else if (e.ClickCount == 2 && line.Spans != null)
                 {
-                    if (line.Spans != null)
+                    foreach (var span in line.Spans)
                     {
-                        foreach (var span in line.Spans)
+                        if ((span.Kind == PseudocodeSyntax.Function || span.Kind == PseudocodeSyntax.Address) &&
+                            pos.Col >= span.Start && pos.Col < span.Start + span.Length)
                         {
-                            if ((span.Kind == PseudocodeSyntax.Function || span.Kind == PseudocodeSyntax.Address) &&
-                                pos.Col >= span.Start && pos.Col < span.Start + span.Length)
-                            {
-                                string symbol = line.Text.Substring(span.Start, span.Length);
-                                HandleSymbolJump(symbol);
-                                break;
-                            }
+                            string symbol = line.Text.Substring(span.Start, span.Length);
+                            HandleSymbolJump(symbol);
+                            break;
                         }
                     }
                 }
             }
+            e.Handled = true;
         }
-        e.Handled = true;
     }
 
     private void HandleSymbolJump(string symbol)

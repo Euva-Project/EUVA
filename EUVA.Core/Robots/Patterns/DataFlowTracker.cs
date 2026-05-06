@@ -191,10 +191,10 @@ public sealed class DataFlowTracker
         if (!_symbols.TryGetValue(varName, out var info)) return null;
         if (info.SemanticTag == null) return null;
 
-        if (_knownConstantsForTag.TryGetValue(info.SemanticTag, out var constMap))
+        if (_knownConstantsForTag.TryGetValue(info.SemanticTag, out var constMap) &&
+            constMap.TryGetValue(value, out var constName))
         {
-            if (constMap.TryGetValue(value, out var constName))
-                return constName;
+            return constName;
         }
 
         return null;

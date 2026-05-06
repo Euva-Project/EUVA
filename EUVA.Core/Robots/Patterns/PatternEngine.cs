@@ -75,10 +75,7 @@ public sealed class PatternEngine
 
         try
         {
-            if (!string.IsNullOrEmpty(rule.Guard))
-            {
-                if (!Regex.IsMatch(line, rule.Guard)) return line;
-            }
+            if (!string.IsNullOrEmpty(rule.Guard) && !Regex.IsMatch(line, rule.Guard)) return line;
 
             if (Regex.IsMatch(line, rule.Pattern))
             {

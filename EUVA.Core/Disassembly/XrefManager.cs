@@ -14,12 +14,10 @@ public sealed class XrefManager
         _targetToSources.Clear();
         foreach (var instr in instructions)
         {
-            if (instr.FlowControl is FlowControl.Call or FlowControl.ConditionalBranch or FlowControl.UnconditionalBranch)
+            if (instr.FlowControl is FlowControl.Call or FlowControl.ConditionalBranch or FlowControl.UnconditionalBranch &&
+                instr.NearBranchTarget != 0)
             {
-                if (instr.NearBranchTarget != 0)
-                {
-                    AddXref((long)instr.NearBranchTarget, (long)instr.IP);
-                }
+                AddXref((long)instr.NearBranchTarget, (long)instr.IP);
             }
 
             bool isRipRel = instr.MemoryBase == Register.RIP || instr.MemoryBase == Register.EIP;
@@ -32,14 +30,12 @@ public sealed class XrefManager
             {
                 for (int i = 0; i < instr.OpCount; i++)
                 {
-                    if (instr.GetOpKind(i) == OpKind.Memory)
+                    if (instr.GetOpKind(i) == OpKind.Memory && 
+                        instr.MemoryBase == Register.None && instr.MemoryIndex == Register.None)
                     {
-                        if (instr.MemoryBase == Register.None && instr.MemoryIndex == Register.None)
-                        {
-                            long target = (long)instr.MemoryDisplacement64;
-                            if (target != 0)
-                                AddXref(target, (long)instr.IP);
-                        }
+                        long target = (long)instr.MemoryDisplacement64;
+                        if (target != 0)
+                            AddXref(target, (long)instr.IP);
                         break;
                     }
                 }

@@ -75,16 +75,12 @@ public static class WorkspaceManager
             if (action == "PATCH_LINE")
             {
                 var colonIdx = context.IndexOf(':');
-                if (colonIdx > 0)
+                if (colonIdx > 0 && 
+                    int.TryParse(context.Substring(0, colonIdx), out int lineIdx) && 
+                    lineIdx >= 0 && lineIdx < lines.Length)
                 {
-                    if (int.TryParse(context.Substring(0, colonIdx), out int lineIdx))
-                    {
-                        if (lineIdx >= 0 && lineIdx < lines.Length)
-                        {
-                            string newContent = context.Substring(colonIdx + 1);
-                            lines[lineIdx] = newContent;
-                        }
-                    }
+                    string newContent = context.Substring(colonIdx + 1);
+                    lines[lineIdx] = newContent;
                 }
             }
         }
