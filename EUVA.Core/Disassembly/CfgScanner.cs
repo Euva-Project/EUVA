@@ -126,9 +126,7 @@ public sealed class CfgScanner
 
     private static bool IsExecutable(long addr, ExecutableRange[] sections)
     {
-        foreach (var sec in sections)
-            if (addr >= sec.Start && addr < sec.End) return true;
-        return false;
+        return sections.Any(sec => addr >= sec.Start && addr < sec.End);
     }
 
     private static bool CheckAndEnqueue(long addr, Queue<long> q, HashSet<long> leaders, ExecutableRange[]? executableSections)

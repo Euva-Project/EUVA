@@ -58,13 +58,13 @@ public static class VTableDetector
                         if (callArg.Kind == IrOperandKind.Register)
                         {
                             var canonical = IrOperand.GetCanonical(callArg.Register);
-                            foreach (var instr2 in block.Instructions)
+                            foreach (var instr2 in block.Instructions.Where(instr2 => 
+                                instr2.DefinesDest && 
+                                instr2.Destination.Kind == IrOperandKind.Register &&
+                                IrOperand.GetCanonical(instr2.Destination.Register) == canonical &&
+                                instr2.Destination.SsaVersion == callArg.SsaVersion))
                             {
-                                if (instr2.DefinesDest && instr2.Destination.Kind == IrOperandKind.Register &&
-                                    IrOperand.GetCanonical(instr2.Destination.Register) == canonical &&
-                                    instr2.Destination.SsaVersion == callArg.SsaVersion)
-                                {
-                                    if (instr2.Destination.Type.BaseType == PrimitiveType.Unknown)
+                                if (instr2.Destination.Type.BaseType == PrimitiveType.Unknown)
                                     {
                                         instr2.Destination.Type = new TypeInfo 
                                         { 
@@ -73,7 +73,6 @@ public static class VTableDetector
                                             TypeName = "Class_vtable"
                                         };
                                     }
-                                }
                             }
                         }
                     }

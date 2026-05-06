@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Linq;
 using EUVA.Core.Disassembly;
 using EUVA.UI.Parsers;
 using System.Text.RegularExpressions;
@@ -893,13 +894,10 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         string? varName = null;
         if (line.Spans != null)
         {
-            foreach (var span in line.Spans)
+            var span = line.Spans.FirstOrDefault(s => (s.Kind == PseudocodeSyntax.Variable || s.Kind == PseudocodeSyntax.VariableAi) && s.Start + s.Length <= line.Text.Length);
+            if (span.Length > 0)
             {
-                if ((span.Kind == PseudocodeSyntax.Variable || span.Kind == PseudocodeSyntax.VariableAi) && span.Start + span.Length <= line.Text.Length)
-                {
-                    varName = line.Text.Substring(span.Start, span.Length).Trim();
-                    break;
-                }
+                varName = line.Text.Substring(span.Start, span.Length).Trim();
             }
         }
         if (varName == null || varName.Length == 0) return;
@@ -972,14 +970,11 @@ public sealed class DecompilerTextView : FrameworkElement, IDisposable
         string? symbol = null;
         if (line.Spans != null)
         {
-            foreach (var span in line.Spans)
+            var span = line.Spans.FirstOrDefault(s => (s.Kind == PseudocodeSyntax.Variable || s.Kind == PseudocodeSyntax.Function) && s.Start + s.Length <= line.Text.Length);
+            if (span.Length > 0)
             {
-                if ((span.Kind == PseudocodeSyntax.Variable || span.Kind == PseudocodeSyntax.Function) && span.Start + span.Length <= line.Text.Length)
-                {
-                    symbol = line.Text.Substring(span.Start, span.Length).Trim();
-                    if (symbol.Length > 0) break;
-                    symbol = null;
-                }
+                symbol = line.Text.Substring(span.Start, span.Length).Trim();
+                if (symbol.Length == 0) symbol = null;
             }
         }
         if (symbol == null) return;

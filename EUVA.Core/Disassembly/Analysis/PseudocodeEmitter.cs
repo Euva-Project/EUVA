@@ -33,8 +33,8 @@ public sealed class PseudocodeEmitter
         _userRenames     = userRenames   ?? new();
         _stringExtractor = stringExtractor;
 
-        foreach (var sym in _userRenames.Values)
-            if (sym.IsAiGenerated) _aiNames.Add(sym.Name);
+        foreach (var sym in _userRenames.Values.Where(sym => sym.IsAiGenerated))
+            _aiNames.Add(sym.Name);
     }
 
     public void SetSignature(CallingConventionAnalyzer.FunctionSignature sig) => _signature = sig;
@@ -607,9 +607,7 @@ public sealed class PseudocodeEmitter
 
         string methodCall;
 
-        VTableDetector.VTableCall? vtMatch = null;
-        foreach (var v in _vtables)
-            if (v.InstructionIndex >= 0 && instr.OriginalAddress > 0) { vtMatch = v; break; }
+        var vtMatch = _vtables.FirstOrDefault(v => v.InstructionIndex >= 0 && instr.OriginalAddress > 0);
 
         if (vtMatch != null && args.Count > 0)
         {
@@ -904,9 +902,11 @@ public sealed class PseudocodeEmitter
                         return $"{baseStr}->{knownFieldTyped}";
                 }
 
-                foreach (var st in _structs)
-                    if (st.Fields.TryGetValue(op.MemDisplacement, out var field))
-                        return $"{baseStr}->{field.Name}";
+                var fieldMatch = _structs
+                    .Select(st => st.Fields.TryGetValue(op.MemDisplacement, out var f) ? f : null)
+                    .FirstOrDefault(f => f != null);
+                if (fieldMatch != null)
+                    return $"{baseStr}->{fieldMatch.Name}";
 
                 string? knownFieldFallback = SignatureCache.GetFieldName(null, (int)op.MemDisplacement);
                 if (knownFieldFallback != null)
@@ -1102,9 +1102,8 @@ public sealed class PseudocodeEmitter
         var declaredVars = new HashSet<string>();
         foreach (var block in blocks)
         {
-            foreach (var instr in block.Instructions)
+            foreach (var instr in block.Instructions.Where(i => !i.IsDead && i.DefinesDest))
             {
-                if (instr.IsDead || !instr.DefinesDest) continue;
                 if (instr.Opcode == IrOpcode.Phi) continue;
 
                 var dst = instr.Destination;
@@ -1224,13 +1223,12 @@ public sealed class PseudocodeEmitter
     {
         if (_typeMap.TryGetValue((IrOperand.GetCanonical(reg), ssa), out var t)) return t;
         if (_blocks == null) return TypeInfo.Unknown;
-        foreach (var block in _blocks)
-            foreach (var instr in block.Instructions)
-                if (instr.DefinesDest &&
-                    IrOperand.GetCanonical(instr.Destination.Register) == IrOperand.GetCanonical(reg) &&
-                    instr.Destination.SsaVersion == ssa)
-                    return instr.Destination.Type;
-        return TypeInfo.Unknown;
+        var canonicalReg = IrOperand.GetCanonical(reg);
+        var match = _blocks.SelectMany(b => b.Instructions)
+            .FirstOrDefault(i => i.DefinesDest &&
+                                 IrOperand.GetCanonical(i.Destination.Register) == canonicalReg &&
+                                 i.Destination.SsaVersion == ssa);
+        return match?.Destination.Type ?? TypeInfo.Unknown;
     }
 
     private static int GetTypeSize(PrimitiveType type) => type switch
@@ -1267,9 +1265,8 @@ public sealed class PseudocodeEmitter
         byte[] bytes = BitConverter.GetBytes(value);
         var chars = new List<char>();
 
-        foreach (byte b in bytes)
+        foreach (byte b in bytes.Where(b => b != 0))
         {
-            if (b == 0) continue; 
             if (b < 0x20 || b > 0x7E) return null; 
             chars.Add((char)b);
         }

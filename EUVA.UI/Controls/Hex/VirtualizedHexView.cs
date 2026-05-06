@@ -8,6 +8,7 @@ using System.IO.MemoryMappedFiles;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -895,19 +896,11 @@ public class VirtualizedHexView : FrameworkElement
         var snap = _modifiedSnapshot;
         if (snap.Count == 0) return;
         long startFrom = _selectedOffset;
-        long? next = null;
-        long bestDist = long.MaxValue;
-        foreach (long o in snap)
-            if (o > startFrom && o - startFrom < bestDist) { bestDist = o - startFrom; next = o; }
+        
+        var next = snap.Where(o => o > startFrom).Cast<long?>().Min();
         if (next == null)
-        {
-            long minVal = long.MaxValue;
-            foreach (long o in snap)
-            {
-                if (o < minVal) minVal = o;
-            }
-            if (minVal != long.MaxValue) next = minVal;
-        }
+            next = snap.Cast<long?>().Min();
+
         if (next.HasValue)
         {
             _selectedOffset = next.Value;
@@ -936,19 +929,11 @@ public class VirtualizedHexView : FrameworkElement
         var snap = _yaraSnapshot;
         if (snap.Count == 0) return false;
         long startFrom = _selectedOffset;
-        long? next = null;
-        long bestDist = long.MaxValue;
-        foreach (long o in snap)
-            if (o > startFrom && o - startFrom < bestDist) { bestDist = o - startFrom; next = o; }
+        
+        var next = snap.Where(o => o > startFrom).Cast<long?>().Min();
         if (next == null)
-        {
-            long minVal = long.MaxValue;
-            foreach (long o in snap)
-            {
-                if (o < minVal) minVal = o;
-            }
-            if (minVal != long.MaxValue) next = minVal;
-        }
+            next = snap.Cast<long?>().Min();
+
         if (next.HasValue)
         {
             _selectedOffset = next.Value;

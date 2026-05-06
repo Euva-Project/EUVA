@@ -8,6 +8,7 @@ using EUVA.UI.Controls;
 using EUVA.UI.Controls.Hex;
 using EUVA.Core.Disassembly;
 using static EUVA.UI.Controls.Hex.DisassemblerHexView;
+using System.Linq;
 
 namespace EUVA.UI;
 
@@ -250,15 +251,11 @@ public partial class MainWindow
             var optHeader = root.FindByPath("NT Headers", "Optional Header");
             if (optHeader != null)
             {
-                foreach (var field in optHeader.Children)
+                var epField = optHeader.Children.FirstOrDefault(f => f.Name == "AddressOfEntryPoint" && f.Value != null);
+                if (epField != null)
                 {
-                    if (field.Name == "AddressOfEntryPoint" && field.Value != null)
-                    {
-                        uint epRva = Convert.ToUInt32(field.Value);
-                        
-                        entryPointFileOffset = RvaToFileOffset(epRva, secList, secCount);
-                        break;
-                    }
+                    uint epRva = Convert.ToUInt32(epField.Value);
+                    entryPointFileOffset = RvaToFileOffset(epRva, secList, secCount);
                 }
             }
 

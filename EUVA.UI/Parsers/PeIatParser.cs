@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Linq;
 
 namespace EUVA.UI.Parsers
 {
@@ -71,25 +72,20 @@ namespace EUVA.UI.Parsers
 
                 _baseAddress = imageBase;
                 long curPos = reader.BaseStream.Position;
-                foreach (var sec in sections)
+                foreach (var sec in sections.Where(sec => sec.SizeOfRawData > 0))
                 {
-                    if (sec.SizeOfRawData > 0)
-                    {
-                        reader.BaseStream.Position = sec.PointerToRawData;
-                        byte[] secData = reader.ReadBytes((int)sec.SizeOfRawData);
-                        _dataSections.Add((sec.VirtualAddress, secData));
-                    }
+                    reader.BaseStream.Position = sec.PointerToRawData;
+                    byte[] secData = reader.ReadBytes((int)sec.SizeOfRawData);
+                    _dataSections.Add((sec.VirtualAddress, secData));
                 }
                 reader.BaseStream.Position = curPos;
 
                 uint RvaToOffset(uint rva)
                 {
-                    foreach (var sec in sections)
+                    var targetSec = sections.FirstOrDefault(sec => rva >= sec.VirtualAddress && rva < sec.VirtualAddress + sec.SizeOfRawData);
+                    if (targetSec.Name != null)
                     {
-                        if (rva >= sec.VirtualAddress && rva < sec.VirtualAddress + sec.SizeOfRawData)
-                        {
-                            return rva - sec.VirtualAddress + sec.PointerToRawData;
-                        }
+                        return rva - targetSec.VirtualAddress + targetSec.PointerToRawData;
                     }
                     return rva; 
                 }

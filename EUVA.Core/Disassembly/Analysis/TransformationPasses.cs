@@ -33,9 +33,9 @@ public static class TransformationPasses
 
         foreach (var block in blocks)
         {
-            foreach (var instr in block.Instructions)
+            foreach (var instr in block.Instructions.Where(i => !i.IsDead))
             {
-                if (instr.IsDead) continue;
+
                 if (instr.DefinesDest)
                 {
                     var key = SsaBuilder.GetVarKey(in instr.Destination);
@@ -72,10 +72,9 @@ public static class TransformationPasses
             {
                 var block = blocks[i];
                 var newLiveOut = new HashSet<(string, int)>();
-                foreach (var succ in block.Successors)
+                foreach (var succ in block.Successors.Where(s => s >= 0 && s < blocks.Length))
                 {
-                    if (succ >= 0 && succ < blocks.Length)
-                        newLiveOut.UnionWith(liveIn[succ]);
+                    newLiveOut.UnionWith(liveIn[succ]);
                 }
 
                 if (!newLiveOut.SetEquals(liveOut[i]))
@@ -116,9 +115,8 @@ public static class TransformationPasses
 
         foreach (var block in blocks)
         {
-            foreach (var instr in block.Instructions)
+            foreach (var instr in block.Instructions.Where(i => !i.IsDead && i.Opcode == IrOpcode.Phi))
             {
-                if (instr.IsDead || instr.Opcode != IrOpcode.Phi) continue;
                 var dstKey = SsaBuilder.GetVarKey(in instr.Destination);
                 if (dstKey == null) continue;
                 var dstV = (dstKey, instr.Destination.SsaVersion);
@@ -134,9 +132,8 @@ public static class TransformationPasses
 
         foreach (var block in blocks)
         {
-            foreach (var instr in block.Instructions)
+            foreach (var instr in block.Instructions.Where(i => !i.IsDead))
             {
-                if (instr.IsDead) continue;
                 if ((instr.Opcode == IrOpcode.Add || instr.Opcode == IrOpcode.Sub || instr.Opcode == IrOpcode.Assign) && instr.Sources.Length >= 1)
                 {
                     var dstKey = SsaBuilder.GetVarKey(in instr.Destination);
@@ -173,9 +170,9 @@ public static class TransformationPasses
     {
         foreach (var block in blocks)
         {
-            foreach (var instr in block.Instructions)
+            foreach (var instr in block.Instructions.Where(i => !i.IsDead))
             {
-                if (instr.IsDead) continue;
+
 
                 var ops = instr.Sources.Concat(new[] { instr.Destination });
                 foreach (var op in ops)
@@ -212,10 +209,8 @@ public static class TransformationPasses
 
         foreach (var block in blocks)
         {
-            foreach (var instr in block.Instructions)
+            foreach (var instr in block.Instructions.Where(i => !i.IsDead))
             {
-                if (instr.IsDead) continue;
-                
                 var allOps = new List<IrOperand>(instr.Sources);
                 if (instr.DefinesDest) allOps.Add(instr.Destination);
 
@@ -235,9 +230,8 @@ public static class TransformationPasses
 
         foreach (var block in blocks)
         {
-            foreach (var instr in block.Instructions)
+            foreach (var instr in block.Instructions.Where(i => !i.IsDead))
             {
-                if (instr.IsDead) continue;
                 if (instr.DefinesDest) RenameOperand(instr.Destination, coalescedGroups, clusterToName);
                 for (int i = 0; i < instr.Sources.Length; i++)
                     RenameOperand(instr.Sources[i], coalescedGroups, clusterToName);
@@ -347,9 +341,8 @@ public static class TransformationPasses
             changed = false;
             foreach (var block in blocks)
             {
-                foreach (var instr in block.Instructions)
+                foreach (var instr in block.Instructions.Where(i => !i.IsDead))
                 {
-                    if (instr.IsDead) continue;
                     if (instr.DefinesDest && instr.Destination.Kind == IrOperandKind.Register && instr.Destination.SsaVersion >= 0)
                     {
                         var key = (IrOperand.GetCanonical(instr.Destination.Register), instr.Destination.SsaVersion);

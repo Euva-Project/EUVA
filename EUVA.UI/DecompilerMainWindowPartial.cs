@@ -14,6 +14,7 @@ using EUVA.UI.Controls.Decompilation;
 using EUVA.UI.Controls.Hex;
 using static EUVA.UI.Controls.Hex.DisassemblerHexView;
 using System.Windows.Input;
+using System.Linq;
 using System.Collections.Generic;
 using EUVA.Core.Disassembly.Analysis;
 using EUVA.Core.Services;
@@ -326,12 +327,9 @@ public partial class MainWindow
                     var discoverer = new FunctionDiscoverer();
                     _allFunctions = discoverer.Discover(ptr, HexView.FileLength, ep, _executableRanges, _peBitness);
 
-                    foreach (var fn in _allFunctions)
+                    foreach (var fn in _allFunctions.Where(fn => !functions.ContainsKey(fn.FileOffset)))
                     {
-                        if (!functions.ContainsKey(fn.FileOffset))
-                        {
-                            functions[fn.FileOffset] = new FunctionItem { Name = fn.Name, Address = fn.FileOffset };
-                        }
+                        functions[fn.FileOffset] = new FunctionItem { Name = fn.Name, Address = fn.FileOffset };
                     }
 
 
@@ -1296,14 +1294,11 @@ public partial class MainWindow
             var optHeader = root.FindByPath("NT Headers", "Optional Header");
             if (optHeader != null)
             {
-                foreach (var field in optHeader.Children)
+                var epField = optHeader.Children.FirstOrDefault(f => f.Name == "AddressOfEntryPoint" && f.Value != null);
+                if (epField != null)
                 {
-                    if (field.Name == "AddressOfEntryPoint" && field.Value != null)
-                    {
-                        uint epRva = Convert.ToUInt32(field.Value);
-                        entryPointFileOffset = RvaToFileOffset(epRva);
-                        break;
-                    }
+                    uint epRva = Convert.ToUInt32(epField.Value);
+                    entryPointFileOffset = RvaToFileOffset(epRva);
                 }
             }
 
