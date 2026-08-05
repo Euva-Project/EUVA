@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-using System.Windows.Media;
 namespace EUVA.Core.Models;
 
 public class DataRegion
