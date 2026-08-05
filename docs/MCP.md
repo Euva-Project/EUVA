@@ -41,7 +41,7 @@ For Claude Desktop: `YOUR_PATH\\claude_desktop_config.json`
 
 Optionally pass `--workspace` to specify the dumps directory:
 ```json
-"args": ["...\\euva_mcp.py", "--workspace", "C:\\path\\to\\EUVA.UI\\bin\\Debug\\net8.0-windows"]
+"args": ["...\\euva_mcp.py", "--workspace", "C:\\path\\to\\EUVA.UI\\bin\\Debug\\net9.0-windows"]
 ```
 
 ---
