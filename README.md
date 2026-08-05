@@ -8,7 +8,7 @@
 ## 🌌 EUVA IDE
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Runtime-.NET%208.0-b4befe?style=for-the-badge&labelColor=11111b">
+  <img src="https://img.shields.io/badge/Runtime-.NET%209.0-b4befe?style=for-the-badge&labelColor=11111b">
   <img src="https://img.shields.io/badge/Winget-Support-74c7ec?style=for-the-badge&labelColor=11111b">
   <img src="https://img.shields.io/badge/License-GPL--3.0-a6e3a1?style=for-the-badge&labelColor=11111b">
 </p>
