@@ -15,6 +15,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EUVA.Core.Models;
+using Color = System.Windows.Media.Color;
 using EUVA.UI;
 
 namespace EUVA.UI.Controls.Hex;
