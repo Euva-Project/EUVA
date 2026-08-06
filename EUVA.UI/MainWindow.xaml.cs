@@ -18,6 +18,7 @@ using EUVA.UI.Theming;
 using System.Windows.Controls;
 using System.Windows.Media;
 using EUVA.UI.Controls;
+using Color = System.Windows.Media.Color;
 using EUVA.UI.Controls.Decompilation;
 using EUVA.UI.Controls.Hex;
 using EUVA.UI.Controls.Properties;

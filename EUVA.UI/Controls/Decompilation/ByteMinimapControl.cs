@@ -12,6 +12,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EUVA.Core.Models;
+using Color = System.Windows.Media.Color;
 
 namespace EUVA.UI.Controls.Decompilation;
 public class ByteMinimapControl : FrameworkElement

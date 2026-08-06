@@ -28,7 +28,7 @@ jobs:
       run: dotnet build EUVA.sln --configuration Release --no-restore
 
     - name: Execute Tests
-      run: dotnet test --no-build --verbosity normal
+      run: dotnet test -c Release --no-build --verbosity normal
 
     - name: Publish
       run: dotnet publish EUVA.UI/EUVA.UI.csproj -c Release -r win-x64 --self-contained false -o ./publish
